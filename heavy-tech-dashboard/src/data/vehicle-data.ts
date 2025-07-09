@@ -1,5 +1,15 @@
 import vehicleImage from '@/assets/vehicle-sample-image.png'
 
+export interface MaintenanceItem {
+  component: string
+  currentHours: number
+  maxHours: number
+  lastService: string
+  nextService: string
+  status: 'good' | 'warning' | 'critical'
+  description: string
+}
+
 export interface Vehicle {
   id: number
   name: string
@@ -30,6 +40,7 @@ export interface Vehicle {
   nextMaintenance: string
   alerts: string[]
   attachments: string[]
+  maintenance: MaintenanceItem[]
 }
 
 export const vehicleData: Vehicle[] = [
@@ -62,7 +73,45 @@ export const vehicleData: Vehicle[] = [
     lastMaintenance: '2024-06-15',
     nextMaintenance: '2024-07-30',
     alerts: ['Hydraulic fluid low', 'Scheduled maintenance due'],
-    attachments: ['Standard Bucket', 'Fork Extensions', 'Grapple']
+    attachments: ['Standard Bucket', 'Fork Extensions', 'Grapple'],
+    maintenance: [
+      {
+        component: 'Hydraulic Filter',
+        currentHours: 847,
+        maxHours: 1000,
+        lastService: '2024-05-20',
+        nextService: '2024-08-15',
+        status: 'warning',
+        description: 'Replace hydraulic filter every 1000 hours'
+      },
+      {
+        component: 'Engine Oil',
+        currentHours: 247,
+        maxHours: 500,
+        lastService: '2024-06-15',
+        nextService: '2024-07-30',
+        status: 'good',
+        description: 'Change engine oil every 500 hours'
+      },
+      {
+        component: 'Air Filter',
+        currentHours: 1100,
+        maxHours: 1000,
+        lastService: '2024-03-10',
+        nextService: 'Overdue',
+        status: 'critical',
+        description: 'Replace air filter every 1000 hours'
+      },
+      {
+        component: 'Bucket Pins',
+        currentHours: 1247,
+        maxHours: 2000,
+        lastService: '2024-01-15',
+        nextService: '2024-12-15',
+        status: 'good',
+        description: 'Grease bucket pins every 2000 hours'
+      }
+    ]
   },
   {
     id: 2,
@@ -93,7 +142,36 @@ export const vehicleData: Vehicle[] = [
     lastMaintenance: '2024-06-20',
     nextMaintenance: '2024-08-05',
     alerts: [],
-    attachments: ['Digging Bucket', 'Hydraulic Hammer', 'Thumb Attachment']
+    attachments: ['Digging Bucket', 'Hydraulic Hammer', 'Thumb Attachment'],
+    maintenance: [
+      {
+        component: 'Track Chains',
+        currentHours: 1800,
+        maxHours: 2500,
+        lastService: '2024-04-10',
+        nextService: '2024-09-20',
+        status: 'good',
+        description: 'Inspect track chains every 2500 hours'
+      },
+      {
+        component: 'Hydraulic Pump',
+        currentHours: 2156,
+        maxHours: 3000,
+        lastService: '2024-02-15',
+        nextService: '2024-10-30',
+        status: 'good',
+        description: 'Service hydraulic pump every 3000 hours'
+      },
+      {
+        component: 'Swing Motor',
+        currentHours: 2800,
+        maxHours: 2500,
+        lastService: '2023-12-05',
+        nextService: 'Overdue',
+        status: 'critical',
+        description: 'Service swing motor every 2500 hours'
+      }
+    ]
   },
   {
     id: 3,
@@ -124,7 +202,36 @@ export const vehicleData: Vehicle[] = [
     lastMaintenance: '2024-06-10',
     nextMaintenance: '2024-07-25',
     alerts: ['Engine temperature warning'],
-    attachments: ['Standard Blade', 'Ripper', 'ROPS Canopy']
+    attachments: ['Standard Blade', 'Ripper', 'ROPS Canopy'],
+    maintenance: [
+      {
+        component: 'Blade Edge',
+        currentHours: 1200,
+        maxHours: 1500,
+        lastService: '2024-04-25',
+        nextService: '2024-08-10',
+        status: 'warning',
+        description: 'Replace blade edge every 1500 hours'
+      },
+      {
+        component: 'Drive Sprockets',
+        currentHours: 789,
+        maxHours: 2000,
+        lastService: '2024-05-30',
+        nextService: '2024-11-15',
+        status: 'good',
+        description: 'Inspect drive sprockets every 2000 hours'
+      },
+      {
+        component: 'Final Drive Oil',
+        currentHours: 1789,
+        maxHours: 1500,
+        lastService: '2024-02-20',
+        nextService: 'Overdue',
+        status: 'critical',
+        description: 'Change final drive oil every 1500 hours'
+      }
+    ]
   },
   {
     id: 4,
@@ -155,7 +262,27 @@ export const vehicleData: Vehicle[] = [
     lastMaintenance: '2024-07-01',
     nextMaintenance: '2024-08-15',
     alerts: ['Connection timeout', 'GPS signal weak'],
-    attachments: ['General Purpose Bucket', 'Pallet Forks', 'Snow Plow']
+    attachments: ['General Purpose Bucket', 'Pallet Forks', 'Snow Plow'],
+    maintenance: [
+      {
+        component: 'Transmission Oil',
+        currentHours: 487,
+        maxHours: 1000,
+        lastService: '2024-06-01',
+        nextService: '2024-09-30',
+        status: 'good',
+        description: 'Change transmission oil every 1000 hours'
+      },
+      {
+        component: 'Tire Condition',
+        currentHours: 987,
+        maxHours: 1200,
+        lastService: '2024-03-15',
+        nextService: '2024-08-20',
+        status: 'good',
+        description: 'Inspect tire condition every 1200 hours'
+      }
+    ]
   },
   {
     id: 5,
@@ -186,6 +313,26 @@ export const vehicleData: Vehicle[] = [
     lastMaintenance: '2024-07-05',
     nextMaintenance: '2024-08-20',
     alerts: [],
-    attachments: ['Mini Bucket', 'Auger', 'Hydraulic Breaker']
+    attachments: ['Mini Bucket', 'Auger', 'Hydraulic Breaker'],
+    maintenance: [
+      {
+        component: 'Hydraulic Hoses',
+        currentHours: 343,
+        maxHours: 1500,
+        lastService: '2024-05-10',
+        nextService: '2024-12-01',
+        status: 'good',
+        description: 'Inspect hydraulic hoses every 1500 hours'
+      },
+      {
+        component: 'Battery Pack',
+        currentHours: 543,
+        maxHours: 5000,
+        lastService: '2024-01-20',
+        nextService: '2025-01-20',
+        status: 'good',
+        description: 'Service battery pack every 5000 hours'
+      }
+    ]
   }
 ] 

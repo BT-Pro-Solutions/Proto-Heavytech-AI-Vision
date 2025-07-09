@@ -1,26 +1,36 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, provide } from 'vue'
 import VehicleSelector from '@/components/VehicleSelector.vue'
-import InfoCard from '@/components/InfoCard.vue'
+import VehicleStatusTab from '@/components/VehicleStatusTab.vue'
+import MaintenanceTab from '@/components/MaintenanceTab.vue'
+import AIVisionTab from '@/components/AIVisionTab.vue'
 import { vehicleData } from '@/data/vehicle-data'
 
 const vehicles = ref(vehicleData)
 const currentVehicleIndex = ref(2) // Start with vehicle #3
 const isPowerOn = ref(false)
-const activeTab = ref('fleet')
+const activeTab = ref('status') // Changed from 'fleet' to 'status'
 const vehicleChangeKey = ref(0) // Reactive key for vehicle changes
 
 const currentVehicle = computed(() => {
   return vehicles.value[currentVehicleIndex.value] || {}
 })
 
-// Count total cards (including conditional alerts card)
+// Count total cards based on active tab
 const totalCards = computed(() => {
-  let count = 5 // battery, location, power, status, operational
-  if (currentVehicle.value.alerts && currentVehicle.value.alerts.length > 0) {
-    count += 1 // alerts card
+  if (activeTab.value === 'status') {
+    let count = 5 // battery, location, power, status, operational
+    if (currentVehicle.value.alerts && currentVehicle.value.alerts.length > 0) {
+      count += 1 // alerts card
+    }
+    return count
+  } else if (activeTab.value === 'maintenance') {
+    // maintenance overview + maintenance items + schedule + parts
+    return 2 + currentVehicle.value.maintenance?.length || 0 + 2
+  } else if (activeTab.value === 'ai-vision') {
+    return 3 // motion control, analytics, ai analysis
   }
-  return count
+  return 1
 })
 
 // Provide values to child components
@@ -47,6 +57,12 @@ watch(currentVehicleIndex, () => {
   console.log(`Vehicle changed to ${currentVehicle.value.name}, change key: ${vehicleChangeKey.value}`)
 })
 
+// Watch for tab changes and reset animation
+watch(activeTab, () => {
+  vehicleChangeKey.value++
+  console.log(`Tab changed to ${activeTab.value}, resetting animations`)
+})
+
 onMounted(() => {
   console.log('Heavy Tech AI Vision Dashboard loaded')
   console.log('Current vehicle:', currentVehicle.value)
@@ -71,142 +87,45 @@ onMounted(() => {
           <h1>{{ currentVehicle.name }}</h1>
         </div>
 
-        <!-- Information Cards Grid -->
-        <div class="info-cards-grid">
-          <!-- Battery Status Card -->
-          <InfoCard size="medium" :index="0">
-            <div class="panel-title">Battery Status</div>
-            <div class="panel-data">
-              <div class="data-item">
-                <span class="label">Health:</span>
-                <span class="value">{{ currentVehicle.batteryHealth }}</span>
-              </div>
-              <div class="data-item">
-                <span class="label">Charge Rate:</span>
-                <span class="value">{{ currentVehicle.chargeRate }}</span>
-              </div>
-              <div class="data-item">
-                <span class="label">Torque Split:</span>
-                <span class="value">{{ currentVehicle.torqueSplit }}</span>
-              </div>
-              <div class="data-item">
-                <span class="label">Drive Mode:</span>
-                <span class="value">{{ currentVehicle.driveMode }}</span>
-              </div>
-            </div>
-          </InfoCard>
+        <!-- Tab Content Area -->
+        <div class="tab-content">
+          <!-- Vehicle Status Tab -->
+          <VehicleStatusTab 
+            v-if="activeTab === 'status'"
+            :vehicle="currentVehicle"
+            :is-power-on="isPowerOn"
+            @toggle-power="togglePower"
+          />
 
-          <!-- Map Location Card -->
-          <InfoCard size="medium" :index="1">
-            <div class="panel-title">Location</div>
-            <div class="panel-data">
-              <div class="data-item">
-                <span class="label">Coordinates:</span>
-                <span class="value">{{ currentVehicle.location?.coordinates }}</span>
-              </div>
-              <div class="data-item">
-                <span class="label">Zone:</span>
-                <span class="value">{{ currentVehicle.location?.zone }}</span>
-              </div>
-              <div class="data-item">
-                <span class="label">Address:</span>
-                <span class="value small">{{ currentVehicle.location?.address }}</span>
-              </div>
-            </div>
-          </InfoCard>
+          <!-- Maintenance Tab -->
+          <MaintenanceTab 
+            v-if="activeTab === 'maintenance'"
+            :vehicle="currentVehicle"
+          />
 
-          <!-- Power Control Card -->
-          <InfoCard size="small" :index="2">
-            <div class="panel-title">Power Control</div>
-            <div class="toggle-container">
-              <div 
-                class="toggle-switch" 
-                :class="{ active: isPowerOn }" 
-                @click="togglePower"
-              >
-                <div class="toggle-slider"></div>
-              </div>
-              <span class="power-status">{{ isPowerOn ? 'ON' : 'OFF' }}</span>
-            </div>
-          </InfoCard>
-
-          <!-- Connection Status Card -->
-          <InfoCard size="small" :index="3">
-            <div class="panel-title">Status</div>
-            <div class="panel-data">
-              <div class="status-item" :class="currentVehicle.connectionStatus?.toLowerCase()">
-                <div class="status-dot"></div>
-                <span>{{ currentVehicle.connectionStatus }}</span>
-              </div>
-              <div class="data-item">
-                <span class="label">Data:</span>
-                <span class="value">{{ currentVehicle.dataStatus }}</span>
-              </div>
-              <div class="data-item">
-                <span class="label">AI Viz:</span>
-                <span class="value">{{ currentVehicle.aiVizStatus }}</span>
-              </div>
-            </div>
-          </InfoCard>
-
-          <!-- Operational Info Card -->
-          <InfoCard size="wide" :index="4">
-            <div class="panel-title">Operational Data</div>
-            <div class="operational-grid">
-              <div class="data-item">
-                <span class="label">Hours:</span>
-                <span class="value">{{ currentVehicle.operationalHours }}</span>
-              </div>
-              <div class="data-item">
-                <span class="label">Efficiency:</span>
-                <span class="value">{{ currentVehicle.efficiency }}</span>
-              </div>
-              <div class="data-item">
-                <span class="label">Fuel Level:</span>
-                <span class="value">{{ currentVehicle.fuelLevel }}</span>
-              </div>
-              <div class="data-item">
-                <span class="label">Engine Temp:</span>
-                <span class="value">{{ currentVehicle.engineTemp }}</span>
-              </div>
-              <div class="data-item">
-                <span class="label">Hydraulic PSI:</span>
-                <span class="value">{{ currentVehicle.hydraulicPressure }}</span>
-              </div>
-              <div class="data-item">
-                <span class="label">Work Mode:</span>
-                <span class="value">{{ currentVehicle.workMode }}</span>
-              </div>
-            </div>
-          </InfoCard>
-
-          <!-- Alerts Card (if there are alerts) -->
-          <InfoCard 
-            v-if="currentVehicle.alerts && currentVehicle.alerts.length > 0" 
-            size="medium" 
-            :index="5"
-          >
-            <div class="panel-title alert-title">⚠️ Alerts</div>
-            <div class="alerts-list">
-              <div 
-                v-for="alert in currentVehicle.alerts" 
-                :key="alert"
-                class="alert-item"
-              >
-                {{ alert }}
-              </div>
-            </div>
-          </InfoCard>
+          <!-- AI Vision Tab -->
+          <AIVisionTab 
+            v-if="activeTab === 'ai-vision'"
+            :vehicle="currentVehicle"
+          />
         </div>
 
         <!-- Bottom Navigation -->
         <div class="bottom-nav">
           <div 
             class="nav-item" 
-            :class="{ active: activeTab === 'fleet' }" 
-            @click="setActiveTab('fleet')"
+            :class="{ active: activeTab === 'status' }" 
+            @click="setActiveTab('status')"
           >
-            <span class="nav-label">FLEET</span>
+            <span class="nav-label">VEHICLE STATUS</span>
+            <div class="nav-indicator"></div>
+          </div>
+          <div 
+            class="nav-item" 
+            :class="{ active: activeTab === 'ai-vision' }" 
+            @click="setActiveTab('ai-vision')"
+          >
+            <span class="nav-label">AI VISION</span>
             <div class="nav-indicator"></div>
           </div>
           <div 
@@ -215,14 +134,6 @@ onMounted(() => {
             @click="setActiveTab('maintenance')"
           >
             <span class="nav-label">MAINTENANCE</span>
-            <div class="nav-indicator"></div>
-          </div>
-          <div 
-            class="nav-item" 
-            :class="{ active: activeTab === 'insights' }" 
-            @click="setActiveTab('insights')"
-          >
-            <span class="nav-label">AI INSIGHTS</span>
             <div class="nav-indicator"></div>
           </div>
         </div>
@@ -293,150 +204,11 @@ body {
   transition: all 0.3s ease;
 }
 
-/* Information Cards Grid */
-.info-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
+/* Tab Content Area */
+.tab-content {
   flex: 1;
   margin-bottom: 40px;
-  align-items: start;
-}
-
-/* Card Content Styling */
-.panel-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 12px;
-}
-
-.panel-title.alert-title {
-  color: #dc2626;
-}
-
-.panel-data {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.data-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 0;
-}
-
-.data-item .label {
-  font-size: 0.85rem;
-  color: #6b7280;
-  font-weight: 500;
-}
-
-.data-item .value {
-  font-size: 0.9rem;
-  color: #1f2937;
-  font-weight: 600;
-  text-align: right;
-}
-
-.data-item .value.small {
-  font-size: 0.75rem;
-  max-width: 60%;
-  line-height: 1.2;
-}
-
-/* Operational Grid */
-.operational-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-/* Status Items */
-.status-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #dc2626;
-}
-
-.status-item.connected .status-dot {
-  background: #16a34a;
-}
-
-.status-item.disconnected .status-dot {
-  background: #dc2626;
-}
-
-/* Toggle Container */
-.toggle-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 8px;
-}
-
-.power-status {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #374151;
-}
-
-/* Toggle Switch Component */
-.toggle-switch {
-  width: 60px;
-  height: 32px;
-  background: #e5e7eb;
-  border-radius: 16px;
-  position: relative;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.toggle-switch.active {
-  background: #3b82f6;
-}
-
-.toggle-slider {
-  width: 28px;
-  height: 28px;
-  background: white;
-  border-radius: 50%;
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.toggle-switch.active .toggle-slider {
-  transform: translateX(28px);
-}
-
-/* Alerts */
-.alerts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.alert-item {
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.2);
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 0.85rem;
-  color: #dc2626;
-  line-height: 1.3;
+  overflow-y: auto;
 }
 
 /* Bottom Navigation Component */
@@ -504,21 +276,16 @@ body {
     padding: 20px;
   }
   
-  .info-cards-grid {
-    grid-template-columns: 1fr;
-    gap: 15px;
-  }
-  
-  .operational-grid {
-    grid-template-columns: 1fr;
-  }
-  
   .vehicle-title h1 {
     font-size: 2rem;
   }
   
   .vehicle-title {
     margin-bottom: 20px;
+  }
+  
+  .nav-label {
+    font-size: 0.75rem;
   }
 }
 
@@ -531,8 +298,7 @@ body {
     font-size: 1.5rem;
   }
   
-  .data-item .value.small {
-    max-width: 70%;
+  .nav-label {
     font-size: 0.7rem;
   }
 }
