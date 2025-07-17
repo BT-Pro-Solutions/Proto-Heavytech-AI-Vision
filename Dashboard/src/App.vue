@@ -93,6 +93,8 @@ const handleNavigation = (view) => {
   img {
     max-width: 100%;
     mix-blend-mode: multiply;
+    transition: .2s ease-out;
+    cursor: pointer;
   }
   & img:nth-child(1),
   & img:nth-child(5) {
@@ -105,6 +107,12 @@ const handleNavigation = (view) => {
     width: 120px;
     filter: blur(2px);
     opacity: .8;
+  }
+
+  img:hover {
+    filter: blur(0px);
+    opacity: 1;
+
   }
 }
 
