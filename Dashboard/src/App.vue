@@ -3,10 +3,18 @@
     <div class="main-container">
       <div class="left-panel">
         <!-- Left panel content -->
-        <div class="left-panel-content">
-          <h2>Left Panel</h2>
-          <p>Content goes here</p>
-        </div>
+          <img src="/logo.png" alt="HeavyTech" class="logo">
+          <div class="vehicle-selector">
+            <img src="/v1.png" alt="">
+
+            <img src="/v2.png" alt="">
+
+            <img src="/v3.png" alt="">
+
+            <img src="/v4.png" alt="">
+
+            <img src="/v5.png" alt="">
+          </div>
       </div>
       
       <div class="middle-panel">
@@ -66,20 +74,38 @@ const handleNavigation = (view) => {
   width: 250px;
   flex-shrink: 0;
   background-color: #f5f5f5;
+  display: flex;
+  flex-direction: column;
 }
 
-.left-panel-content {
-  padding: 1rem;
+.logo {
+  margin: 30px auto;
+  width: 150px;
 }
-
-.left-panel-content h2 {
-  font-family: var(--font-heading);
-  font-size: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-.left-panel-content p {
-  font-family: var(--font-body);
+.vehicle-selector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+  gap: 10px;
+  flex-grow: 1;
+  padding-bottom: 77px;
+  img {
+    max-width: 100%;
+    mix-blend-mode: multiply;
+  }
+  & img:nth-child(1),
+  & img:nth-child(5) {
+    width: 90px;
+    filter: blur(4px);
+    opacity: .5;
+  }
+  & img:nth-child(2),
+  & img:nth-child(4) {
+    width: 120px;
+    filter: blur(2px);
+    opacity: .8;
+  }
 }
 
 .middle-panel {

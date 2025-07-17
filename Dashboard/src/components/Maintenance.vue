@@ -12,7 +12,7 @@
     <div class="maintenance-container">
       <!-- Left column - Maintenance Items -->
       <div class="maintenance-list">
-        <div class="maint-card">
+        <div class="maint-card" :class="{ 'is-loaded': cardStates.track }">
           <div class="maintenance-item-header">
             <h3 class="maintenance-item-title">TRACK LIFESPAN</h3>
             <div class="maintenance-item-hours">900 / 1000 hrs</div>
@@ -27,7 +27,7 @@
           </div>
         </div>
 
-        <div class="maint-card">
+        <div class="maint-card" :class="{ 'is-loaded': cardStates.bucket }">
           <div class="maintenance-item-header">
             <h3 class="maintenance-item-title">BUCKET LIFESPAN</h3>
             <div class="maintenance-item-hours">900 / 1000 hrs</div>
@@ -42,7 +42,7 @@
           </div>
         </div>
 
-        <div class="maint-card">
+        <div class="maint-card" :class="{ 'is-loaded': cardStates.oil }">
           <div class="maintenance-item-header">
             <h3 class="maintenance-item-title">OIL LIFESPAN</h3>
             <div class="maintenance-item-hours">900 / 1000 hrs</div>
@@ -57,7 +57,7 @@
           </div>
         </div>
 
-        <div class="maint-card">
+        <div class="maint-card" :class="{ 'is-loaded': cardStates.leds }">
           <div class="maintenance-item-header">
             <h3 class="maintenance-item-title">LEDS LIFESPAN</h3>
             <div class="maintenance-item-hours">900 / 1000 hrs</div>
@@ -74,7 +74,7 @@
       </div>
 
       <!-- Right column - Error Log -->
-      <div class="error-log">
+      <div class="error-log" :class="{ 'is-loaded': cardStates.errorLog }">
         <h3 class="error-log-title">ERROR LOG</h3>
         <div class="error-log-content">
           <div class="error-item">
@@ -100,7 +100,28 @@
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue'
 import Header from './Header.vue';
+
+// Reactive state for each card's loaded state
+const cardStates = ref({
+  track: false,
+  bucket: false,
+  oil: false,
+  leds: false,
+  errorLog: false
+})
+
+// Trigger fade-in animations with delays
+onMounted(() => {
+  const cards = ['track', 'bucket', 'oil', 'leds', 'errorLog']
+  
+  cards.forEach((cardName, index) => {
+    setTimeout(() => {
+      cardStates.value[cardName] = true
+    }, index * 150) // 150ms delay between each card
+  })
+})
 </script>
 
 <style scoped>
@@ -115,14 +136,13 @@ import Header from './Header.vue';
   display: flex;
   gap: 1rem;
   width: 100%;
-  height: calc(100% - 125px);
+  height: calc(100% - 150px);
 }
 
 .maintenance-list {
   flex: 1;
   height: 100%;
   overflow-y: auto;
-  padding: 0.5rem 0;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -134,6 +154,28 @@ import Header from './Header.vue';
   padding: 1.5rem;
   color: #fff;
   font-family: var(--font-body);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  position: relative;
+}
+
+.maint-card.is-loaded {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.maint-card.is-loaded::before {
+  animation: none;
+}
+
+@keyframes loading-shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
 }
 
 .maintenance-item-header {
@@ -225,6 +267,20 @@ import Header from './Header.vue';
   padding: 1.5rem;
   color: #fff;
   font-family: var(--font-body);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  position: relative;
+}
+
+
+.error-log.is-loaded {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.error-log.is-loaded::before {
+  animation: none;
 }
 
 .error-log-title {
