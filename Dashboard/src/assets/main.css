@@ -1,0 +1,32 @@
+@import './base.css';
+
+.card-title {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    color: #ffffffc8;
+    position: relative;
+}
+
+.big-number {
+    font-family: var(--font-heading);
+    font-size: 3rem;
+    line-height: 1.1em;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    color: #fff;
+    position: relative;
+}
+
+.big-number.green {
+    color: var(--color-primary);
+}
+
+.big-number.yellow {
+    color: var(--color-secondary);
+}
+
+.big-number.red {
+    color: var(--color-error);
+}
