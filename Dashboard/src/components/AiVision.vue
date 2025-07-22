@@ -123,7 +123,12 @@ const movements = ref({
   toolTilt: -55,
   armTilt: 140,
   armExtension: 1,
-  centerPivot: 0
+  centerPivot: 0,
+  // Wheel RPM values (-100 to 100)
+  wheelBackLeft: 0,
+  wheelBackRight: 0,
+  wheelFrontLeft: 0,
+  wheelFrontRight: 0
 })
 
 // Target values for smooth animation
@@ -131,7 +136,12 @@ const targetMovements = ref({
   toolTilt: -55,
   armTilt: 140,
   armExtension: 1,
-  centerPivot: 0
+  centerPivot: 0,
+  // Wheel RPM targets
+  wheelBackLeft: 0,
+  wheelBackRight: 0,
+  wheelFrontLeft: 0,
+  wheelFrontRight: 0
 })
 
 // Vision system stats
@@ -232,7 +242,7 @@ const initThreeJS = () => {
   modelViewport.value.appendChild(renderer.domElement)
 
   // Enhanced lighting setup
-  const ambientLight = new THREE.AmbientLight(0x404040, 1.8)
+  const ambientLight = new THREE.AmbientLight(0x404040, 8)
   scene.add(ambientLight)
 
   // Primary directional light (key light)
@@ -279,10 +289,10 @@ const initThreeJS = () => {
 
   // Load GLB model
   const loader = new GLTFLoader()
-  loader.load('/test-model.glb', (gltf) => {
+  loader.load('/model-bucket.glb', (gltf) => {
     model = gltf.scene
-    model.scale.set(2, 2, 2)
-    model.rotation.y = Math.PI / 3 
+    model.scale.set(20, 20, 20)
+    model.rotation.y = Math.PI / 6 
     scene.add(model)
 
     // Find and store model parts with material improvements
@@ -306,7 +316,7 @@ const initThreeJS = () => {
         }
         
         const name = child.name.toLowerCase()
-        if (name.includes('fork')) {
+        if (name.includes('tool')) {
           modelParts.fork = child
         } else if (name.includes('arm-extension')) {
           modelParts.armExtension = child
@@ -314,6 +324,14 @@ const initThreeJS = () => {
           modelParts.arm = child
         } else if (name.includes('front-pivot')) {
           modelParts.frontPivot = child
+        } else if (name.includes('wheel-back-left') || name.includes('wheel_back_left')) {
+          modelParts.wheelBackLeft = child
+        } else if (name.includes('wheel-back-right') || name.includes('wheel_back_right')) {
+          modelParts.wheelBackRight = child
+        } else if (name.includes('wheel-front-left') || name.includes('wheel_front_left')) {
+          modelParts.wheelFrontLeft = child
+        } else if (name.includes('wheel-front-right') || name.includes('wheel_front_right')) {
+          modelParts.wheelFrontRight = child
         }
       }
     })
@@ -331,7 +349,8 @@ const initThreeJS = () => {
     // Center the model
     const box = new THREE.Box3().setFromObject(model)
     const center = box.getCenter(new THREE.Vector3())
-    model.position.sub(center)
+    model.position.sub(center);
+    model.position.z += -5;
   })
 
   // Setup event listeners
@@ -376,6 +395,24 @@ const initThreeJS = () => {
     if (modelParts.frontPivot) {
       modelParts.frontPivot.rotation.y = THREE.MathUtils.degToRad(movements.value.centerPivot)
     }
+    
+    // Update wheel rotations based on RPM (RPM to radians per frame conversion)
+    // RPM to radians per second: (RPM * 2 * PI) / 60
+    // Then divide by ~60 FPS: ((RPM * 2 * PI) / 60) / 60
+    const rpmToRadiansPerFrame = (rpm) => (rpm * 2 * Math.PI) / 3600
+    
+    if (modelParts.wheelBackLeft) {
+      modelParts.wheelBackLeft.rotation.x += rpmToRadiansPerFrame(movements.value.wheelBackLeft)
+    }
+    if (modelParts.wheelBackRight) {
+      modelParts.wheelBackRight.rotation.x += rpmToRadiansPerFrame(movements.value.wheelBackRight)
+    }
+    if (modelParts.wheelFrontLeft) {
+      modelParts.wheelFrontLeft.rotation.x += rpmToRadiansPerFrame(movements.value.wheelFrontLeft)
+    }
+    if (modelParts.wheelFrontRight) {
+      modelParts.wheelFrontRight.rotation.x += rpmToRadiansPerFrame(movements.value.wheelFrontRight)
+    }
 
     renderer.render(scene, camera)
   }
@@ -396,10 +433,17 @@ const initThreeJS = () => {
 const simulateMovements = () => {
   if (!isManualControl.value) {
     // Update target values for smooth animation
-    targetMovements.value.toolTilt = -55 + Math.sin(Date.now() * 0.001) * 20  // Range: -75 to -35
-    targetMovements.value.armTilt = 185 + Math.cos(Date.now() * 0.0008) * 30   // Range: 155 to 215
+    targetMovements.value.toolTilt = 90 + Math.sin(Date.now() * 0.001) * 20  // Range: -75 to -35
+    targetMovements.value.armTilt = 0 + Math.cos(Date.now() * 0.0008) * 30   // Range: 155 to 215
     targetMovements.value.armExtension = 1.25 + Math.cos(Date.now() * 0.0012) * 0.15  // Range: 1.1 to 1.4
     targetMovements.value.centerPivot = Math.sin(Date.now() * 0.0005) * 25     // Range: -25 to 25
+    
+    // Simulate wheel RPM values (-100 to 100)
+    const time = Date.now() * 0.001
+    targetMovements.value.wheelBackLeft = Math.sin(time * 0.7) * 60 + Math.cos(time * 0.3) * 40
+    targetMovements.value.wheelBackRight = Math.sin(time * 0.7) * 60 + Math.cos(time * 0.3) * 40
+    targetMovements.value.wheelFrontLeft = Math.sin(time * 0.5) * 50 + Math.cos(time * 0.4) * 30
+    targetMovements.value.wheelFrontRight = Math.sin(time * 0.5) * 50 + Math.cos(time * 0.4) * 30
   }
   
   // Simulate FPS fluctuation
@@ -415,6 +459,12 @@ const smoothInterpolation = () => {
   movements.value.armTilt += (targetMovements.value.armTilt - movements.value.armTilt) * lerpFactor
   movements.value.armExtension += (targetMovements.value.armExtension - movements.value.armExtension) * lerpFactor
   movements.value.centerPivot += (targetMovements.value.centerPivot - movements.value.centerPivot) * lerpFactor
+  
+  // Interpolate wheel RPM values
+  movements.value.wheelBackLeft += (targetMovements.value.wheelBackLeft - movements.value.wheelBackLeft) * lerpFactor
+  movements.value.wheelBackRight += (targetMovements.value.wheelBackRight - movements.value.wheelBackRight) * lerpFactor
+  movements.value.wheelFrontLeft += (targetMovements.value.wheelFrontLeft - movements.value.wheelFrontLeft) * lerpFactor
+  movements.value.wheelFrontRight += (targetMovements.value.wheelFrontRight - movements.value.wheelFrontRight) * lerpFactor
 }
 
 // Handle manual control interaction
@@ -621,7 +671,7 @@ onUnmounted(() => {
   border-radius: 8px;
   position: relative;
   &::after {
-    content: 'TEMPORARY MODEL';
+    content: '';    
     position: absolute;
     top: 0;
     left: 0;

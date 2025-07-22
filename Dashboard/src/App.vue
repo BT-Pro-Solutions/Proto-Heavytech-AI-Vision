@@ -29,7 +29,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import Navigation from './components/Navigation.vue'
 import VehicleInformationView from './components/VehicleInformation.vue'
 import AiVisionView from './components/AiVision.vue'
@@ -45,17 +45,77 @@ const components = {
 const currentView = ref(VehicleInformationView)
 const activeView = ref('vehicleInformation')
 
-const handleNavigation = (view) => {
-  console.log('Navigation clicked:', view)
+// Demo functionality
+const isDemoMode = ref(false)
+const demoInterval = ref(null)
+const viewCycle = ['vehicleInformation', 'aivision', 'maintenance']
+let currentViewIndex = 0
+
+// Check for demo URL parameter
+const checkDemoParameter = () => {
+  const urlParams = new URLSearchParams(window.location.search)
+  return urlParams.has('demo')
+}
+
+// Start demo mode
+const startDemo = () => {
+  if (demoInterval.value) return // Already running
+  
+  isDemoMode.value = true
+  currentViewIndex = 0
+  
+  // Set initial view
+  navigateToView(viewCycle[currentViewIndex])
+  
+  demoInterval.value = setInterval(() => {
+    currentViewIndex = (currentViewIndex + 1) % viewCycle.length
+    navigateToView(viewCycle[currentViewIndex])
+  }, 6000) // 4 seconds
+}
+
+// Stop demo mode
+const stopDemo = () => {
+  if (demoInterval.value) {
+    clearInterval(demoInterval.value)
+    demoInterval.value = null
+  }
+  isDemoMode.value = false
+}
+
+// Navigate to a specific view
+const navigateToView = (view) => {
   const component = components[view]
   if (component) {
     currentView.value = component
     activeView.value = view
-      } else {
-      currentView.value = VehicleInformationView
-      activeView.value = 'vehicleInformation'
-    }
+  } else {
+    currentView.value = VehicleInformationView
+    activeView.value = 'vehicleInformation'
+  }
 }
+
+const handleNavigation = (view) => {
+  console.log('Navigation clicked:', view)
+  
+  // Stop demo mode if user manually navigates
+  if (isDemoMode.value) {
+    stopDemo()
+  }
+  
+  navigateToView(view)
+}
+
+onMounted(() => {
+  // Check if demo parameter is present and start demo
+  if (checkDemoParameter()) {
+    startDemo()
+  }
+})
+
+onUnmounted(() => {
+  // Cleanup interval on component unmount
+  stopDemo()
+})
 </script>
 
 <style scoped>
