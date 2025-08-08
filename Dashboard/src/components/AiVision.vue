@@ -225,6 +225,8 @@ const cameraActive = ref(false)
 const cameraUrl = ref('http://heavy.local:8000/camera/stream')
 const lightsOn = ref(false)
 const powerEnabled = ref(true)
+// App base path for serving public assets both in dev and prod
+const appBase = (import.meta && import.meta.env && import.meta.env.BASE_URL) ? import.meta.env.BASE_URL : '/'
 
 // Fluid pressure data (flow rates from API)
 const fluidPressures = ref({
@@ -874,6 +876,11 @@ const mapExtensionToScale = (millimeters) => {
 
 // Core handler to process incoming data (live or offline)
 const handleIncomingData = (data, isOffline = false) => {
+  // If websocket indicates idle, treat as offline regardless of power state
+  if (!isOffline && data && data.idle === true) {
+    startOfflinePlayback()
+    return
+  }
   // We have data (treat as live for UI/animation purposes)
   hasLiveData.value = true
 
@@ -889,8 +896,9 @@ const handleIncomingData = (data, isOffline = false) => {
     if (data.camera_url.startsWith('http')) {
       cameraUrl.value = data.camera_url
     } else if (isOffline) {
-      // Mock assets served from current dashboard origin
-      cameraUrl.value = `${origin}${data.camera_url}`
+      // Mock assets: resolve against app base (works on dev server and deployed server)
+      const base = appBase.endsWith('/') ? appBase : `${appBase}/`
+      cameraUrl.value = `${origin}${base.replace(/\/$/, '')}${data.camera_url}`
     } else {
       // Live stream served from robot
       cameraUrl.value = `http://heavy.local:8000${data.camera_url}`
@@ -910,6 +918,30 @@ const handleIncomingData = (data, isOffline = false) => {
     }
     if (typeof data.servo_angle === 'number') {
       targetMovements.value.centerPivot = data.servo_angle
+    }
+    // Update fluid pressures (map flow rates to 0-100%)
+    if (data) {
+      const flowToPercent = (v) => {
+        const val = Number(v)
+        if (!Number.isFinite(val)) return 0
+        const scaled = val <= 1.5 ? val * 100 : val
+        return Math.max(0, Math.min(100, scaled))
+      }
+      if (data.drive_motors_flow !== undefined) {
+        targetFluidPressures.value.driveMotors = flowToPercent(data.drive_motors_flow)
+      }
+      if (data.steering_motor_flow !== undefined) {
+        targetFluidPressures.value.steeringMotor = flowToPercent(data.steering_motor_flow)
+      }
+      if (data.bucket_motor_flow !== undefined) {
+        targetFluidPressures.value.bucketMotor = flowToPercent(data.bucket_motor_flow)
+      }
+      if (data.arm_motor_flow !== undefined) {
+        targetFluidPressures.value.armMotor = flowToPercent(data.arm_motor_flow)
+      }
+      if (data.extension_motor_flow !== undefined) {
+        targetFluidPressures.value.extensionMotor = flowToPercent(data.extension_motor_flow)
+      }
     }
   }
 
