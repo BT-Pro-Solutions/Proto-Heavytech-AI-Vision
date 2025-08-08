@@ -1025,10 +1025,8 @@ const playOfflineNext = () => {
   current.camera_url = `/training_data/images/${current.timestamp}.jpg`
   handleIncomingData(current, true)
   offlineIndex += 1
-  // Variable pacing: timestamps are in milliseconds
-  const delta = Number(next.timestamp) - Number(current.timestamp)
-  const delayMs = Number.isFinite(delta) && delta > 0 ? delta : 80
-  offlineTimeout = setTimeout(playOfflineNext, Math.max(1, Math.floor(delayMs)))
+  // Temporary: fixed pacing at 100ms per frame for reliability
+  offlineTimeout = setTimeout(playOfflineNext, 100)
 }
 
 function parseTrainingCsv(csvText) {
