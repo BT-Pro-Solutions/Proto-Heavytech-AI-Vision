@@ -2,7 +2,7 @@
   <div class="aivision">
     <Header @power-toggle="onPowerToggle">
       <template #title>
-        AI VISION - <span class="active-status">ACTIVE</span>
+        AI VISION - <span :class="isIdleStatus ? 'idle-status' : 'active-status'">{{ isIdleStatus ? 'IDLE' : 'ACTIVE' }}</span>
       </template>
       <template #subtitle>
         HEAVYTECH WHEEL LOADER
@@ -148,11 +148,7 @@
           
           <!-- Video feed: show MJPEG stream only when active, otherwise fallback video -->
           <div class="video-container">
-            <img v-if="cameraActive" class="video-feed" :src="cameraUrl" alt="Robot Camera Feed" />
-            <video v-else class="video-feed" autoplay muted loop>
-              <source src="/loader.mp4" type="video/mp4">
-              Your browser does not support the video tag.
-            </video>
+            <img class="video-feed" :src="cameraUrl" alt="Robot Camera Feed" />
           </div>
           <div class="vision-header">
             <div class="vision-status">
@@ -170,7 +166,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
@@ -261,7 +257,10 @@ let motorSpeed = 0 // 0.0 - 1.0
 let offlineRows = []
 let offlineIndex = 0
 let offlineTimeout = null
-let offlineActive = false
+const offlineActive = ref(false)
+
+// UI idle indicator: when power is off or mock is playing
+const isIdleStatus = computed(() => !powerEnabled.value || offlineActive.value)
 
 // Animation state for fade-in effects
 const animationState = ref({
@@ -1035,6 +1034,10 @@ const connectWebsocket = () => {
     } catch (e) {
       return
     }
+    if (data && data.idle === true) {
+      startOfflinePlayback()
+      return
+    }
     // Stop offline playback if it was running
     stopOfflinePlayback()
     // Use common handler
@@ -1070,7 +1073,7 @@ const scheduleReconnect = () => {
 
 // -------- Offline playback (training_data) --------
 const startOfflinePlayback = async () => {
-  if (offlineActive) return
+  if (offlineActive.value) return
   try {
     // Load CSV once
     if (!offlineRows || offlineRows.length === 0) {
@@ -1080,7 +1083,7 @@ const startOfflinePlayback = async () => {
       offlineRows = parseTrainingCsv(text)
     }
     if (!offlineRows || offlineRows.length === 0) return
-    offlineActive = true
+    offlineActive.value = true
     offlineIndex = 0
     // Kick off playback
     playOfflineNext()
@@ -1094,12 +1097,12 @@ const stopOfflinePlayback = () => {
     clearTimeout(offlineTimeout)
     offlineTimeout = null
   }
-  offlineActive = false
+  offlineActive.value = false
 }
 
 const playOfflineNext = () => {
-  if (!offlineActive || offlineRows.length === 0) {
-    offlineActive = false
+  if (!offlineActive.value || offlineRows.length === 0) {
+    offlineActive.value = false
     return
   }
   // Loop playback when reaching the end
