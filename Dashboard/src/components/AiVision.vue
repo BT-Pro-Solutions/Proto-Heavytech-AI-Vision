@@ -116,6 +116,8 @@ import Header from './Header.vue'
 
 // Three.js variables
 let scene, camera, renderer, model, mixer
+let groundGrid
+let modelBaseYaw = 0
 let modelParts = {} // Store references to model parts
 const modelViewport = ref(null)
 
@@ -154,6 +156,7 @@ const hasLiveData = ref(false)
 const trainingActive = ref(false)
 const cameraActive = ref(false)
 const cameraUrl = ref('http://heavy.local:8000/camera/stream')
+const lightsOn = ref(false)
 
 // Animation intervals
 let animationInterval = null
@@ -165,6 +168,7 @@ let reconnectTimer = null
 let messagesThisSecond = 0
 let fpsInterval = null
 let wheelDirection = 0 // -1 backward, 0 stopped, 1 forward
+let motorSpeed = 0 // 0.0 - 1.0
 
 // Animation state for fade-in effects
 const animationState = ref({
@@ -297,12 +301,27 @@ const initThreeJS = () => {
   groundMesh.receiveShadow = true
   scene.add(groundMesh)
 
+  // Subtle ground lines (grid) to indicate motion; only shown when moving
+  groundGrid = new THREE.GridHelper(1000, 200, 0x406080, 0x406080)
+  groundGrid.position.y = -4.95
+  if (Array.isArray(groundGrid.material)) {
+    groundGrid.material.forEach((m) => { m.transparent = true; m.opacity = 0.25; m.depthWrite = false })
+  } else if (groundGrid.material) {
+    groundGrid.material.transparent = true
+    groundGrid.material.opacity = 0.25
+    groundGrid.material.depthWrite = false
+  }
+  groundGrid.visible = false
+  scene.add(groundGrid)
+
   // Load GLB model
   const loader = new GLTFLoader()
   loader.load('/model-bucket.glb', (gltf) => {
     model = gltf.scene
-    model.scale.set(20, 20, 20)
+    // Increase overall model size by an additional 1.2x
+    model.scale.set(28.8, 28.8, 28.8)
     model.rotation.y = Math.PI / 6 
+    modelBaseYaw = model.rotation.y
     scene.add(model)
 
     // Find and store model parts with material improvements
@@ -334,6 +353,10 @@ const initThreeJS = () => {
           modelParts.arm = child
         } else if (name.includes('front-pivot')) {
           modelParts.frontPivot = child
+        } else if (name.includes('light-bar-lights')) {
+          modelParts.lightBarLights = child
+        } else if (name.includes('front-lights')) {
+          modelParts.frontLights = child
         } else if (name.includes('wheel-back-left') || name.includes('wheel_back_left')) {
           modelParts.wheelBackLeft = child
         } else if (name.includes('wheel-back-right') || name.includes('wheel_back_right')) {
@@ -403,10 +426,19 @@ const initThreeJS = () => {
       modelParts.arm.rotation.x = THREE.MathUtils.degToRad(-movements.value.armTilt)
     }
     if (modelParts.armExtension) {
-      modelParts.armExtension.scale.z = movements.value.armExtension
+      // Reduce visual extension by half: baseline 1 + half the delta
+      const reducedExtension = 1 + (movements.value.armExtension - 1) * 0.5
+      modelParts.armExtension.scale.z = reducedExtension
     }
     if (modelParts.frontPivot) {
       modelParts.frontPivot.rotation.y = THREE.MathUtils.degToRad(-movements.value.centerPivot)
+    }
+    // Toggle visible lights based on websocket lights flag
+    if (modelParts.lightBarLights) {
+      modelParts.lightBarLights.visible = !!lightsOn.value
+    }
+    if (modelParts.frontLights) {
+      modelParts.frontLights.visible = !!lightsOn.value
     }
     
     // Wheel rotation: when live, rotate only by motor direction (forward/back/stopped).
@@ -425,6 +457,30 @@ const initThreeJS = () => {
     }
     if (modelParts.wheelFrontRight) {
       modelParts.wheelFrontRight.rotation.x += (liveWheelDelta ?? rpmToRadiansPerFrame(movements.value.wheelFrontRight))
+    }
+
+    // Animate ground lines to simulate motion beneath robot (without moving robot)
+    if (groundGrid) {
+      const steerRad = THREE.MathUtils.degToRad(movements.value.centerPivot || 0)
+      // Compose heading from base model yaw, steering, and camera orbit to match visual facing
+      const headingYaw = (modelBaseYaw || 0) - cameraAngleX - steerRad
+      // Always show and orient grid to match bot heading as seen on screen
+      groundGrid.visible = true
+      groundGrid.rotation.y = headingYaw
+      // Move grid under bot only when moving
+      const isMoving = hasLiveData.value && wheelDirection !== 0 && motorSpeed > 0.01
+      if (isMoving) {
+        const forward = new THREE.Vector3(0, 0, -1)
+        forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), headingYaw)
+        const scalar = wheelDirection * motorSpeed * 0.5 // tune ground flow speed
+        groundGrid.position.x += forward.x * scalar
+        groundGrid.position.z += forward.z * scalar
+        // Recenter if drifting too far
+        if (Math.abs(groundGrid.position.x) > 50 || Math.abs(groundGrid.position.z) > 50) {
+          groundGrid.position.x = 0
+          groundGrid.position.z = 0
+        }
+      }
     }
 
     renderer.render(scene, camera)
@@ -626,6 +682,7 @@ onUnmounted(() => {
   if (renderer) {
     renderer.dispose()
   }
+  groundGrid = null
   
   // Clean up event listeners
   if (typeof onMouseMove === 'function') {
@@ -689,10 +746,13 @@ const connectWebsocket = () => {
     // We have live data
     hasLiveData.value = true
 
-    // Update training/camera status
+    // Update training/camera/lights status
     trainingActive.value = !!data.training_mode_active
     const camActive = !!data.camera_stream_active
     cameraActive.value = camActive
+    if (typeof data.lights_on === 'boolean') {
+      lightsOn.value = data.lights_on
+    }
     if (typeof data.camera_url === 'string' && data.camera_url.length > 0) {
       cameraUrl.value = data.camera_url.startsWith('http')
         ? data.camera_url
@@ -722,11 +782,15 @@ const connectWebsocket = () => {
       const dir = data.motor_direction.toLowerCase()
       wheelDirection = dir === 'forward' ? 1 : dir === 'backward' ? -1 : 0
     }
+    if (typeof data.motor_speed === 'number') {
+      motorSpeed = Math.max(0, Math.min(1, data.motor_speed))
+    }
   }
 
   websocket.onclose = () => {
     hasLiveData.value = false
     cameraActive.value = false
+    lightsOn.value = false
     wheelDirection = 0
     scheduleReconnect()
   }
