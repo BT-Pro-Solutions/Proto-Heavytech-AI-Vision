@@ -5,7 +5,7 @@
         Vehicle Information
       </template>
       <template #subtitle>
-        Front End Loader
+        HEAVYTECH WHEEL LOADER
       </template>
     </Header>
     <CardGrid>

@@ -2,10 +2,10 @@
   <div class="aivision">
     <Header @power-toggle="onPowerToggle">
       <template #title>
-        EQUIPMENT NAME HERE
+        AI VISION - <span class="active-status">ACTIVE</span>
       </template>
       <template #subtitle>
-        AI VISION - <span class="active-status">ACTIVE</span>
+        HEAVYTECH WHEEL LOADER
       </template>
     </Header>
     
@@ -23,7 +23,6 @@
       <div class="data-container">
         <!-- Movement Visualization -->
         <div class="movement-section" :class="{ 'is-loaded': animationState.movement }">
-          <h3 class="section-title">MOVEMENT VISUALIZATION</h3>
           
           <div class="movement-table">
             <div class="movement-row">
@@ -322,10 +321,10 @@ const initThreeJS = () => {
 
   // Scene setup
   scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x0f151a) // Set background to #0f151a
+  scene.background = new THREE.Color(0x21262e) // Set background to #0f151a
   
   // Add fog effect for depth and atmosphere
-  scene.fog = new THREE.Fog(0x0f151a, 15, 100) // Same color as background, starts at 15 units, fully foggy at 100 units
+  scene.fog = new THREE.Fog(0x21262e, 15, 100) // Same color as background, starts at 15 units, fully foggy at 100 units
 
   // Camera setup
   camera = new THREE.PerspectiveCamera(
@@ -358,8 +357,8 @@ const initThreeJS = () => {
   
   bloomPass = new UnrealBloomPass(
     new THREE.Vector2(modelViewport.value.clientWidth, modelViewport.value.clientHeight),
-    0.5, // Bloom strength
-    0.4, // Bloom radius
+    0.2, // Bloom strength
+    0.6, // Bloom radius
     0.85  // Bloom threshold
   )
   composer.addPass(bloomPass)
@@ -1353,7 +1352,7 @@ const onPowerToggle = (isOn) => {
   font-weight: 600;
   fill: #fff;
   text-anchor: middle;
-  transform: rotate(90deg);
+  transform: rotate(90deg) translateY(-48px);
   font-variant-numeric: tabular-nums;
 }
 
