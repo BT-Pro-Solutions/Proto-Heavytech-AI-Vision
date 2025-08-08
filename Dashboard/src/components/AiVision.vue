@@ -77,9 +77,71 @@
               </div>
             </div>
           </div>
+<br></br>
+          <h3 class="section-title">FLUID PRESSURE</h3>
+          
+          <div class="pressure-dials">
+            <div class="pressure-dial">
+              <div class="dial-container">
+                <svg class="dial-svg" viewBox="0 0 50 50">
+                  <circle class="dial-background" cx="25" cy="25" r="20" />
+                  <circle class="dial-fill" cx="25" cy="25" r="20" 
+                          :style="{ strokeDasharray: `${(fluidPressures.driveMotors / 100) * 126}, 126` }" />
+                  <text class="dial-value-text" x="25" y="24" text-anchor="middle" dominant-baseline="middle">{{ Math.round(fluidPressures.driveMotors) }}</text>
+                </svg>
+                <div class="dial-title">DRIVE</div>
+              </div>
+            </div>
+
+            <div class="pressure-dial">
+              <div class="dial-container">
+                <svg class="dial-svg" viewBox="0 0 50 50">
+                  <circle class="dial-background" cx="25" cy="25" r="20" />
+                  <circle class="dial-fill" cx="25" cy="25" r="20" 
+                          :style="{ strokeDasharray: `${(fluidPressures.steeringMotor / 100) * 126}, 126` }" />
+                  <text class="dial-value-text" x="25" y="24" text-anchor="middle" dominant-baseline="middle">{{ Math.round(fluidPressures.steeringMotor) }}</text>
+                </svg>
+                <div class="dial-title">STEER</div>
+              </div>
+            </div>
+
+            <div class="pressure-dial">
+              <div class="dial-container">
+                <svg class="dial-svg" viewBox="0 0 50 50">
+                  <circle class="dial-background" cx="25" cy="25" r="20" />
+                  <circle class="dial-fill" cx="25" cy="25" r="20" 
+                          :style="{ strokeDasharray: `${(fluidPressures.bucketMotor / 100) * 126}, 126` }" />
+                  <text class="dial-value-text" x="25" y="24" text-anchor="middle" dominant-baseline="middle">{{ Math.round(fluidPressures.bucketMotor) }}</text>
+                </svg>
+                <div class="dial-title">BUCKET</div>
+              </div>
+            </div>
+
+            <div class="pressure-dial">
+              <div class="dial-container">
+                <svg class="dial-svg" viewBox="0 0 50 50">
+                  <circle class="dial-background" cx="25" cy="25" r="20" />
+                  <circle class="dial-fill" cx="25" cy="25" r="20" 
+                          :style="{ strokeDasharray: `${(fluidPressures.armMotor / 100) * 126}, 126` }" />
+                  <text class="dial-value-text" x="25" y="24" text-anchor="middle" dominant-baseline="middle">{{ Math.round(fluidPressures.armMotor) }}</text>
+                </svg>
+                <div class="dial-title">ARM</div>
+              </div>
+            </div>
+
+            <div class="pressure-dial">
+              <div class="dial-container">
+                <svg class="dial-svg" viewBox="0 0 50 50">
+                  <circle class="dial-background" cx="25" cy="25" r="20" />
+                  <circle class="dial-fill" cx="25" cy="25" r="20" 
+                          :style="{ strokeDasharray: `${(fluidPressures.extensionMotor / 100) * 126}, 126` }" />
+                  <text class="dial-value-text" x="25" y="24" text-anchor="middle" dominant-baseline="middle">{{ Math.round(fluidPressures.extensionMotor) }}</text>
+                </svg>
+                <div class="dial-title">EXT</div>
+              </div>
+            </div>
+          </div>
         </div>
-
-
 
         <!-- AI Vision Status -->
         <div class="vision-section" :class="{ 'is-loaded': animationState.video }">
@@ -112,10 +174,14 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import Header from './Header.vue'
 
 // Three.js variables
 let scene, camera, renderer, model, mixer
+let composer, bloomPass
 let groundMesh
 let groundGrid
 let modelBaseYaw = 0
@@ -160,6 +226,24 @@ const cameraUrl = ref('http://heavy.local:8000/camera/stream')
 const lightsOn = ref(false)
 const powerEnabled = ref(true)
 
+// Fluid pressure data (flow rates from API)
+const fluidPressures = ref({
+  driveMotors: 0,
+  steeringMotor: 0,
+  bucketMotor: 0,
+  armMotor: 0,
+  extensionMotor: 0
+})
+
+// Target fluid pressures for smooth animation
+const targetFluidPressures = ref({
+  driveMotors: 0,
+  steeringMotor: 0,
+  bucketMotor: 0,
+  armMotor: 0,
+  extensionMotor: 0
+})
+
 // Animation intervals
 let animationInterval = null
 let animationId = null
@@ -181,7 +265,8 @@ let offlineActive = false
 const animationState = ref({
   model: false,
   movement: false,
-  video: false
+  video: false,
+  fluidPressure: false
 })
 
 // Mouse controls state
@@ -235,7 +320,10 @@ const initThreeJS = () => {
 
   // Scene setup
   scene = new THREE.Scene()
-  // Transparent background
+  scene.background = new THREE.Color(0x0f151a) // Set background to #0f151a
+  
+  // Add fog effect for depth and atmosphere
+  scene.fog = new THREE.Fog(0x0f151a, 15, 100) // Same color as background, starts at 15 units, fully foggy at 100 units
 
   // Camera setup
   camera = new THREE.PerspectiveCamera(
@@ -249,7 +337,7 @@ const initThreeJS = () => {
   // Renderer setup with improved quality
   renderer = new THREE.WebGLRenderer({ 
     antialias: true, 
-    alpha: true,
+    alpha: false, // Changed to false since we have a solid background
     powerPreference: "high-performance"
   })
   renderer.setSize(modelViewport.value.clientWidth, modelViewport.value.clientHeight)
@@ -259,8 +347,20 @@ const initThreeJS = () => {
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.0
   renderer.outputColorSpace = THREE.SRGBColorSpace
-  renderer.setClearColor(0x000000, 0) // Transparent background
   modelViewport.value.appendChild(renderer.domElement)
+
+  // Setup bloom effect
+  composer = new EffectComposer(renderer)
+  const renderPass = new RenderPass(scene, camera)
+  composer.addPass(renderPass)
+  
+  bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(modelViewport.value.clientWidth, modelViewport.value.clientHeight),
+    0.5, // Bloom strength
+    0.4, // Bloom radius
+    0.85  // Bloom threshold
+  )
+  composer.addPass(bloomPass)
 
   // Enhanced lighting setup
   const ambientLight = new THREE.AmbientLight(0x404040, 8)
@@ -309,7 +409,8 @@ const initThreeJS = () => {
   scene.add(groundMesh)
 
   // Subtle ground lines (grid) to indicate motion; only shown when moving
-  groundGrid = new THREE.GridHelper(1000, 200, 0x406080, 0x406080)
+  // Brighter color: use 0x70a0e0 (was 0x406080)
+  groundGrid = new THREE.GridHelper(1000, 200, 0x70a0e0, 0x70a0e0)
   groundGrid.position.y = -4.95
   if (Array.isArray(groundGrid.material)) {
     groundGrid.material.forEach((m) => { m.transparent = true; m.opacity = 0.25; m.depthWrite = false })
@@ -501,7 +602,7 @@ const initThreeJS = () => {
       }
     }
 
-    renderer.render(scene, camera)
+    composer.render()
   }
   animate()
 
@@ -511,6 +612,7 @@ const initThreeJS = () => {
       camera.aspect = modelViewport.value.clientWidth / modelViewport.value.clientHeight
       camera.updateProjectionMatrix()
       renderer.setSize(modelViewport.value.clientWidth, modelViewport.value.clientHeight)
+      composer.setSize(modelViewport.value.clientWidth, modelViewport.value.clientHeight)
     }
   }
   window.addEventListener('resize', handleResize)
@@ -534,6 +636,13 @@ const simulateMovements = () => {
     targetMovements.value.wheelBackRight = Math.sin(time * 0.7) * 60 + Math.cos(time * 0.3) * 40
     targetMovements.value.wheelFrontLeft = Math.sin(time * 0.5) * 50 + Math.cos(time * 0.4) * 30
     targetMovements.value.wheelFrontRight = Math.sin(time * 0.5) * 50 + Math.cos(time * 0.4) * 30
+    
+    // Simulate fluid pressure values (0-100)
+    targetFluidPressures.value.driveMotors = 20 + Math.sin(time * 0.8) * 15 + Math.cos(time * 0.4) * 10
+    targetFluidPressures.value.steeringMotor = 15 + Math.sin(time * 0.6) * 10 + Math.cos(time * 0.3) * 8
+    targetFluidPressures.value.bucketMotor = 25 + Math.sin(time * 0.9) * 20 + Math.cos(time * 0.5) * 12
+    targetFluidPressures.value.armMotor = 30 + Math.sin(time * 0.7) * 18 + Math.cos(time * 0.4) * 15
+    targetFluidPressures.value.extensionMotor = 18 + Math.sin(time * 0.5) * 12 + Math.cos(time * 0.2) * 8
   }
   
   // Simulated FPS when offline
@@ -555,6 +664,13 @@ const smoothInterpolation = () => {
   movements.value.wheelBackRight += (targetMovements.value.wheelBackRight - movements.value.wheelBackRight) * lerpFactor
   movements.value.wheelFrontLeft += (targetMovements.value.wheelFrontLeft - movements.value.wheelFrontLeft) * lerpFactor
   movements.value.wheelFrontRight += (targetMovements.value.wheelFrontRight - movements.value.wheelFrontRight) * lerpFactor
+  
+  // Interpolate fluid pressure values
+  fluidPressures.value.driveMotors += (targetFluidPressures.value.driveMotors - fluidPressures.value.driveMotors) * lerpFactor
+  fluidPressures.value.steeringMotor += (targetFluidPressures.value.steeringMotor - fluidPressures.value.steeringMotor) * lerpFactor
+  fluidPressures.value.bucketMotor += (targetFluidPressures.value.bucketMotor - fluidPressures.value.bucketMotor) * lerpFactor
+  fluidPressures.value.armMotor += (targetFluidPressures.value.armMotor - fluidPressures.value.armMotor) * lerpFactor
+  fluidPressures.value.extensionMotor += (targetFluidPressures.value.extensionMotor - fluidPressures.value.extensionMotor) * lerpFactor
 }
 
 // Handle manual control interaction
@@ -647,6 +763,11 @@ const startAnimationSequence = () => {
     animationState.value.movement = true
   }, 700)
   
+  // Fluid pressure panel fades in
+  setTimeout(() => {
+    animationState.value.fluidPressure = true
+  }, 950)
+  
   // Video feed fades in
   setTimeout(() => {
     animationState.value.video = true
@@ -705,6 +826,9 @@ onUnmounted(() => {
     cancelAnimationFrame(animationId)
   }
   
+  if (composer) {
+    composer.dispose()
+  }
   if (renderer) {
     renderer.dispose()
   }
@@ -978,7 +1102,6 @@ const onPowerToggle = (isOn) => {
 .model-container {
   flex: 1;
   border-radius: 8px;
-  padding: 2rem;
   position: relative;
   overflow: hidden;
   opacity: 0;
@@ -992,13 +1115,13 @@ const onPowerToggle = (isOn) => {
 
   &::before {
     content: '';
-    background: radial-gradient(circle at center, #0E146A 0%, #0F151A 60%);
+    box-shadow: inset 0 0 40px 50px #0f151b;
     position: absolute;
-    top: 50%;
+    top: 0;
     left: 0;
     width: 100%;
-    aspect-ratio: 1/1;
-    transform: scaleY(0.5) translateY(-50%);
+    height: 100%;
+    z-index: 1;
   }
 }
 
@@ -1007,24 +1130,6 @@ const onPowerToggle = (isOn) => {
   height: 100%;
   border-radius: 8px;
   position: relative;
-  &::after {
-    content: '';    
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    box-shadow: inset 0 0 10px 10px #0f151a;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-family: var(--font-heading);
-    font-size: 1.2rem;
-    color: #ffffff48;
-    text-align: center;
-    pointer-events: none;
-    text-shadow: 0 0 10px #0f151a;
-  }
 }
 
 .data-container {
@@ -1151,7 +1256,86 @@ const onPowerToggle = (isOn) => {
   transition: left 0.3s ease;
 }
 
+.fluid-pressure-section {
+  background: var(--color-surface);
+  border-radius: 8px;
+  padding: 2rem;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  margin-bottom: 1rem;
 
+  &.is-loaded {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pressure-dials {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+}
+
+.pressure-dial {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.dial-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.dial-svg {
+  width: 45px;
+  height: 45px;
+  transform: rotate(-90deg);
+}
+
+.dial-background {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.dial-fill {
+  fill: none;
+  stroke: var(--color-secondary);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 0, 126;
+  transition: stroke-dasharray 0.3s ease;
+  filter: drop-shadow(0 0 4px var(--color-secondary-transparent));
+}
+
+.dial-value-text {
+  font-family: var(--font-heading);
+  font-size: 10px;
+  font-weight: 600;
+  fill: #fff;
+  text-anchor: middle;
+  transform: rotate(90deg);
+  font-variant-numeric: tabular-nums;
+}
+
+.dial-title {
+  font-family: var(--font-body);
+  font-size: 7px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
 
 .vision-section {
   border-radius: 8px;
