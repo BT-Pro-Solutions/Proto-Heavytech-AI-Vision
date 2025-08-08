@@ -47,15 +47,15 @@
               <div class="movement-bar interactive-bar" 
                    @mousedown="startDrag('armTilt', $event)"
                    @touchstart="startDrag('armTilt', $event)">
-                <div class="movement-bar-fill" :style="{ width: `${((Math.round(movements.armTilt) - 140) / 90) * 100}%` }"></div>
-                <div class="movement-thumb" :style="{ left: `${((Math.round(movements.armTilt) - 140) / 90) * 100}%` }"></div>
+                <div class="movement-bar-fill" :style="{ width: `${((Math.round(movements.armTilt) + 32) / 50) * 100}%` }"></div>
+                <div class="movement-thumb" :style="{ left: `${((Math.round(movements.armTilt) + 32) / 50) * 100}%` }"></div>
               </div>
             </div>
 
             <div class="movement-row">
               <div class="movement-header">
                 <div class="movement-label">ARM EXTENSION</div>
-                <div class="movement-value">{{ Math.round(movements.armExtension ) }}</div>
+                <div class="movement-value">{{ Math.round(((movements.armExtension - 1) / 0.5) * 100) }}</div>
               </div>
               <div class="movement-bar interactive-bar" 
                    @mousedown="startDrag('armExtension', $event)"
@@ -85,9 +85,10 @@
         <div class="vision-section" :class="{ 'is-loaded': animationState.video }">
           
           
-          <!-- Video feed placeholder -->
+          <!-- Video feed: show MJPEG stream only when active, otherwise fallback video -->
           <div class="video-container">
-            <video class="video-feed" autoplay muted loop>
+            <img v-if="cameraActive" class="video-feed" :src="cameraUrl" alt="Robot Camera Feed" />
+            <video v-else class="video-feed" autoplay muted loop>
               <source src="/loader.mp4" type="video/mp4">
               Your browser does not support the video tag.
             </video>
@@ -98,7 +99,7 @@
               <span>AI VISION</span>
             </div>
             <div class="vision-stats">
-              {{ visionStats.fps }} FPS | {{ visionStats.status }}
+              {{ hasLiveData ? visionStats.fps : 60 }} FPS | {{ hasLiveData ? (trainingActive ? 'Training Active' : 'Live') : visionStats.status }}
             </div>
           </div>
         </div>
@@ -144,17 +145,26 @@ const targetMovements = ref({
   wheelFrontRight: 0
 })
 
-// Vision system stats
+// Vision system and live-data flags
 const visionStats = ref({
   fps: 60,
-  status: 'Training Active'
+  status: 'Idle'
 })
+const hasLiveData = ref(false)
+const trainingActive = ref(false)
+const cameraActive = ref(false)
+const cameraUrl = ref('http://heavy.local:8000/camera/stream')
 
 // Animation intervals
 let animationInterval = null
 let animationId = null
 let isManualControl = ref(false)
 let manualControlTimeout = null
+let websocket = null
+let reconnectTimer = null
+let messagesThisSecond = 0
+let fpsInterval = null
+let wheelDirection = 0 // -1 backward, 0 stopped, 1 forward
 
 // Animation state for fade-in effects
 const animationState = ref({
@@ -382,36 +392,39 @@ const initThreeJS = () => {
       camera.lookAt(0, 0, 0)
     }
 
-    // Update model parts based on movement data
+  // Update model parts based on movement data
     if (modelParts.fork) {
-      modelParts.fork.rotation.x = THREE.MathUtils.degToRad(movements.value.toolTilt)
+      // Bucket angle is relative to horizontal; convert to local rotation by subtracting arm tilt
+      // Then apply model orientation bias of -100°
+      const localBucketDeg = (movements.value.toolTilt - movements.value.armTilt) - 100
+      modelParts.fork.rotation.x = THREE.MathUtils.degToRad(-localBucketDeg)
     }
     if (modelParts.arm) {
-      modelParts.arm.rotation.x = THREE.MathUtils.degToRad(movements.value.armTilt)
+      modelParts.arm.rotation.x = THREE.MathUtils.degToRad(-movements.value.armTilt)
     }
     if (modelParts.armExtension) {
       modelParts.armExtension.scale.z = movements.value.armExtension
     }
     if (modelParts.frontPivot) {
-      modelParts.frontPivot.rotation.y = THREE.MathUtils.degToRad(movements.value.centerPivot)
+      modelParts.frontPivot.rotation.y = THREE.MathUtils.degToRad(-movements.value.centerPivot)
     }
     
-    // Update wheel rotations based on RPM (RPM to radians per frame conversion)
-    // RPM to radians per second: (RPM * 2 * PI) / 60
-    // Then divide by ~60 FPS: ((RPM * 2 * PI) / 60) / 60
+    // Wheel rotation: when live, rotate only by motor direction (forward/back/stopped).
+    // When offline, fall back to simulated RPM-based rotation.
     const rpmToRadiansPerFrame = (rpm) => (rpm * 2 * Math.PI) / 3600
+    const liveWheelDelta = hasLiveData.value ? wheelDirection * 0.05 : null // radians per frame
     
     if (modelParts.wheelBackLeft) {
-      modelParts.wheelBackLeft.rotation.x += rpmToRadiansPerFrame(movements.value.wheelBackLeft)
+      modelParts.wheelBackLeft.rotation.x += (liveWheelDelta ?? rpmToRadiansPerFrame(movements.value.wheelBackLeft))
     }
     if (modelParts.wheelBackRight) {
-      modelParts.wheelBackRight.rotation.x += rpmToRadiansPerFrame(movements.value.wheelBackRight)
+      modelParts.wheelBackRight.rotation.x += (liveWheelDelta ?? rpmToRadiansPerFrame(movements.value.wheelBackRight))
     }
     if (modelParts.wheelFrontLeft) {
-      modelParts.wheelFrontLeft.rotation.x += rpmToRadiansPerFrame(movements.value.wheelFrontLeft)
+      modelParts.wheelFrontLeft.rotation.x += (liveWheelDelta ?? rpmToRadiansPerFrame(movements.value.wheelFrontLeft))
     }
     if (modelParts.wheelFrontRight) {
-      modelParts.wheelFrontRight.rotation.x += rpmToRadiansPerFrame(movements.value.wheelFrontRight)
+      modelParts.wheelFrontRight.rotation.x += (liveWheelDelta ?? rpmToRadiansPerFrame(movements.value.wheelFrontRight))
     }
 
     renderer.render(scene, camera)
@@ -429,8 +442,11 @@ const initThreeJS = () => {
   window.addEventListener('resize', handleResize)
 }
 
-// Simulate live movement data
+// Simulate movement data when no live data is available
 const simulateMovements = () => {
+  if (hasLiveData.value) {
+    return
+  }
   if (!isManualControl.value) {
     // Update target values for smooth animation
     targetMovements.value.toolTilt = 90 + Math.sin(Date.now() * 0.001) * 20  // Range: -75 to -35
@@ -446,8 +462,8 @@ const simulateMovements = () => {
     targetMovements.value.wheelFrontRight = Math.sin(time * 0.5) * 50 + Math.cos(time * 0.4) * 30
   }
   
-  // Simulate FPS fluctuation
-  visionStats.value.fps = 58 + Math.floor(Math.random() * 5)
+  // Simulated FPS when offline
+  visionStats.value.fps = 60
 }
 
 // Smooth interpolation function
@@ -570,6 +586,17 @@ onMounted(() => {
   // Start movement simulation
   animationInterval = setInterval(simulateMovements, 100)
   
+  // Start FPS measurement for live data
+  fpsInterval = setInterval(() => {
+    if (hasLiveData.value) {
+      visionStats.value.fps = messagesThisSecond
+    }
+    messagesThisSecond = 0
+  }, 1000)
+
+  // Connect to robot websocket for live data
+  connectWebsocket()
+
   // Add drag event listeners
   window.addEventListener('mousemove', onDragMove)
   window.addEventListener('mouseup', onDragEnd)
@@ -616,7 +643,106 @@ onUnmounted(() => {
   window.removeEventListener('mouseup', onDragEnd)
   window.removeEventListener('touchmove', onDragMove)
   window.removeEventListener('touchend', onDragEnd)
+
+  if (websocket) {
+    try { websocket.close() } catch (e) {}
+    websocket = null
+  }
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  if (fpsInterval) {
+    clearInterval(fpsInterval)
+    fpsInterval = null
+  }
 })
+
+// Map robot extension in mm (0-100) to model scale (1.0 - 1.5)
+const mapExtensionToScale = (millimeters) => {
+  const mm = Math.max(0, Math.min(100, Number(millimeters) || 0))
+  return 1 + (mm / 100) * 0.5
+}
+
+// Establish websocket and update reactive targets
+const connectWebsocket = () => {
+  try {
+    websocket = new WebSocket('ws://heavy.local:8000/ws')
+  } catch (e) {
+    scheduleReconnect()
+    return
+  }
+
+  websocket.onopen = () => {
+    // Connected; wait for messages to mark live
+  }
+
+  websocket.onmessage = (event) => {
+    messagesThisSecond += 1
+    let data
+    try {
+      data = JSON.parse(event.data)
+    } catch (e) {
+      return
+    }
+
+    // We have live data
+    hasLiveData.value = true
+
+    // Update training/camera status
+    trainingActive.value = !!data.training_mode_active
+    const camActive = !!data.camera_stream_active
+    cameraActive.value = camActive
+    if (typeof data.camera_url === 'string' && data.camera_url.length > 0) {
+      cameraUrl.value = data.camera_url.startsWith('http')
+        ? data.camera_url
+        : `http://heavy.local:8000${data.camera_url}`
+    } else {
+      cameraUrl.value = 'http://heavy.local:8000/camera/stream'
+    }
+
+    // Update target movements from live data
+    if (!isManualControl.value) {
+      if (typeof data.bucket_angle === 'number') {
+        targetMovements.value.toolTilt = data.bucket_angle
+      }
+      if (typeof data.arm_angle === 'number') {
+        targetMovements.value.armTilt = data.arm_angle
+      }
+      if (typeof data.extension_amount === 'number') {
+        targetMovements.value.armExtension = mapExtensionToScale(data.extension_amount)
+      }
+      if (typeof data.servo_angle === 'number') {
+        targetMovements.value.centerPivot = data.servo_angle
+      }
+    }
+
+    // Update wheel direction from motor state
+    if (typeof data.motor_direction === 'string') {
+      const dir = data.motor_direction.toLowerCase()
+      wheelDirection = dir === 'forward' ? 1 : dir === 'backward' ? -1 : 0
+    }
+  }
+
+  websocket.onclose = () => {
+    hasLiveData.value = false
+    cameraActive.value = false
+    wheelDirection = 0
+    scheduleReconnect()
+  }
+
+  websocket.onerror = () => {
+    try { websocket.close() } catch (e) {}
+  }
+}
+
+const scheduleReconnect = () => {
+  if (reconnectTimer) return
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    connectWebsocket()
+  }, 2000)
+}
 </script>
 
 <style scoped>
