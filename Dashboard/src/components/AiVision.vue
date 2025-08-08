@@ -120,6 +120,7 @@ import Header from './Header.vue'
 // Three.js variables
 let scene, camera, renderer, model, mixer
 let composer, bloomPass
+let groundMesh
 let groundGrid
 let modelBaseYaw = 0
 let modelParts = {} // Store references to model parts
@@ -311,7 +312,7 @@ const initThreeJS = () => {
   // Add transparent ground plane for shadows
   const groundGeometry = new THREE.PlaneGeometry(100, 100)
   const groundMaterial = new THREE.ShadowMaterial({ opacity: 0.3 })
-  const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial)
+  groundMesh = new THREE.Mesh(groundGeometry, groundMaterial)
   groundMesh.rotation.x = -Math.PI / 2
   groundMesh.position.y = -5
   groundMesh.receiveShadow = true
@@ -400,6 +401,17 @@ const initThreeJS = () => {
     const center = box.getCenter(new THREE.Vector3())
     model.position.sub(center);
     model.position.z += -5;
+
+    // Fit ground plane just beneath the model's lowest point to avoid intersection
+    const fittedBox = new THREE.Box3().setFromObject(model)
+    const minY = fittedBox.min.y
+    const newGroundY = minY - 0.05
+    if (groundMesh) {
+      groundMesh.position.y = newGroundY
+    }
+    if (groundGrid) {
+      groundGrid.position.y = newGroundY + 0.02 // slightly above plane to prevent z-fighting
+    }
   })
 
   // Setup event listeners
