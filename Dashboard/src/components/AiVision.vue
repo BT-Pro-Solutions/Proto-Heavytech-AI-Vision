@@ -1,6 +1,6 @@
 <template>
   <div class="aivision">
-    <Header>
+    <Header @power-toggle="onPowerToggle">
       <template #title>
         EQUIPMENT NAME HERE
       </template>
@@ -158,6 +158,7 @@ const trainingActive = ref(false)
 const cameraActive = ref(false)
 const cameraUrl = ref('http://heavy.local:8000/camera/stream')
 const lightsOn = ref(false)
+const powerEnabled = ref(true)
 
 // Animation intervals
 let animationInterval = null
@@ -170,6 +171,11 @@ let messagesThisSecond = 0
 let fpsInterval = null
 let wheelDirection = 0 // -1 backward, 0 stopped, 1 forward
 let motorSpeed = 0 // 0.0 - 1.0
+// Offline playback state (for training_data fallback)
+let offlineRows = []
+let offlineIndex = 0
+let offlineTimeout = null
+let offlineActive = false
 
 // Animation state for fade-in effects
 const animationState = ref({
@@ -662,8 +668,16 @@ onMounted(() => {
     messagesThisSecond = 0
   }, 1000)
 
-  // Connect to robot websocket for live data
-  connectWebsocket()
+  // Connect to robot websocket for live data (only when powered)
+  if (powerEnabled.value) {
+    connectWebsocket()
+  }
+  // If no live data within a short window or power is off, start offline playback
+  setTimeout(() => {
+    if (!hasLiveData.value || !powerEnabled.value) {
+      startOfflinePlayback()
+    }
+  }, 1200)
 
   // Add drag event listeners
   window.addEventListener('mousemove', onDragMove)
@@ -695,6 +709,7 @@ onUnmounted(() => {
     renderer.dispose()
   }
   groundGrid = null
+  stopOfflinePlayback()
   
   // Clean up event listeners
   if (typeof onMouseMove === 'function') {
@@ -733,6 +748,60 @@ const mapExtensionToScale = (millimeters) => {
   return 1 + (mm / 100) * 0.5
 }
 
+// Core handler to process incoming data (live or offline)
+const handleIncomingData = (data, isOffline = false) => {
+  // We have data (treat as live for UI/animation purposes)
+  hasLiveData.value = true
+
+  // Update training/camera/lights status
+  trainingActive.value = !!data.training_mode_active
+  const camActive = !!data.camera_stream_active
+  cameraActive.value = camActive
+  if (typeof data.lights_on === 'boolean') {
+    lightsOn.value = data.lights_on
+  }
+  if (typeof data.camera_url === 'string' && data.camera_url.length > 0) {
+    const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : ''
+    if (data.camera_url.startsWith('http')) {
+      cameraUrl.value = data.camera_url
+    } else if (isOffline) {
+      // Mock assets served from current dashboard origin
+      cameraUrl.value = `${origin}${data.camera_url}`
+    } else {
+      // Live stream served from robot
+      cameraUrl.value = `http://heavy.local:8000${data.camera_url}`
+    }
+  }
+
+  // Update target movements from data
+  if (!isManualControl.value) {
+    if (typeof data.bucket_angle === 'number') {
+      targetMovements.value.toolTilt = data.bucket_angle
+    }
+    if (typeof data.arm_angle === 'number') {
+      targetMovements.value.armTilt = data.arm_angle
+    }
+    if (typeof data.extension_amount === 'number') {
+      targetMovements.value.armExtension = mapExtensionToScale(data.extension_amount)
+    }
+    if (typeof data.servo_angle === 'number') {
+      targetMovements.value.centerPivot = data.servo_angle
+    }
+  }
+
+  // Update wheel direction and speed from motor state
+  if (typeof data.motor_direction === 'string') {
+    const dir = data.motor_direction.toLowerCase()
+    wheelDirection = dir === 'forward' ? 1 : dir === 'backward' ? -1 : 0
+  }
+  if (typeof data.motor_speed === 'number') {
+    motorSpeed = Math.max(0, Math.min(1, data.motor_speed))
+  }
+
+  // FPS counter tick
+  messagesThisSecond += 1
+}
+
 // Establish websocket and update reactive targets
 const connectWebsocket = () => {
   try {
@@ -747,56 +816,16 @@ const connectWebsocket = () => {
   }
 
   websocket.onmessage = (event) => {
-    messagesThisSecond += 1
     let data
     try {
       data = JSON.parse(event.data)
     } catch (e) {
       return
     }
-
-    // We have live data
-    hasLiveData.value = true
-
-    // Update training/camera/lights status
-    trainingActive.value = !!data.training_mode_active
-    const camActive = !!data.camera_stream_active
-    cameraActive.value = camActive
-    if (typeof data.lights_on === 'boolean') {
-      lightsOn.value = data.lights_on
-    }
-    if (typeof data.camera_url === 'string' && data.camera_url.length > 0) {
-      cameraUrl.value = data.camera_url.startsWith('http')
-        ? data.camera_url
-        : `http://heavy.local:8000${data.camera_url}`
-    } else {
-      cameraUrl.value = 'http://heavy.local:8000/camera/stream'
-    }
-
-    // Update target movements from live data
-    if (!isManualControl.value) {
-      if (typeof data.bucket_angle === 'number') {
-        targetMovements.value.toolTilt = data.bucket_angle
-      }
-      if (typeof data.arm_angle === 'number') {
-        targetMovements.value.armTilt = data.arm_angle
-      }
-      if (typeof data.extension_amount === 'number') {
-        targetMovements.value.armExtension = mapExtensionToScale(data.extension_amount)
-      }
-      if (typeof data.servo_angle === 'number') {
-        targetMovements.value.centerPivot = data.servo_angle
-      }
-    }
-
-    // Update wheel direction from motor state
-    if (typeof data.motor_direction === 'string') {
-      const dir = data.motor_direction.toLowerCase()
-      wheelDirection = dir === 'forward' ? 1 : dir === 'backward' ? -1 : 0
-    }
-    if (typeof data.motor_speed === 'number') {
-      motorSpeed = Math.max(0, Math.min(1, data.motor_speed))
-    }
+    // Stop offline playback if it was running
+    stopOfflinePlayback()
+    // Use common handler
+    handleIncomingData(data)
   }
 
   websocket.onclose = () => {
@@ -804,7 +833,11 @@ const connectWebsocket = () => {
     cameraActive.value = false
     lightsOn.value = false
     wheelDirection = 0
-    scheduleReconnect()
+    if (powerEnabled.value) {
+      scheduleReconnect()
+    }
+    // Start offline playback when connection drops or power is off
+    startOfflinePlayback()
   }
 
   websocket.onerror = () => {
@@ -816,8 +849,110 @@ const scheduleReconnect = () => {
   if (reconnectTimer) return
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null
-    connectWebsocket()
+    if (powerEnabled.value) {
+      connectWebsocket()
+    }
   }, 2000)
+}
+
+// -------- Offline playback (training_data) --------
+const startOfflinePlayback = async () => {
+  if (offlineActive) return
+  try {
+    // Load CSV once
+    if (!offlineRows || offlineRows.length === 0) {
+      const resp = await fetch('/training_data/data_document.csv')
+      if (!resp.ok) return
+      const text = await resp.text()
+      offlineRows = parseTrainingCsv(text)
+    }
+    if (!offlineRows || offlineRows.length === 0) return
+    offlineActive = true
+    offlineIndex = 0
+    // Kick off playback
+    playOfflineNext()
+  } catch (e) {
+    // ignore
+  }
+}
+
+const stopOfflinePlayback = () => {
+  if (offlineTimeout) {
+    clearTimeout(offlineTimeout)
+    offlineTimeout = null
+  }
+  offlineActive = false
+}
+
+const playOfflineNext = () => {
+  if (!offlineActive || offlineRows.length === 0) {
+    offlineActive = false
+    return
+  }
+  // Loop playback when reaching the end
+  if (offlineIndex >= offlineRows.length) {
+    offlineIndex = 0
+  }
+  const current = offlineRows[offlineIndex]
+  const next = offlineRows[(offlineIndex + 1) % offlineRows.length]
+  // Inject image frame as camera source; treat as active
+  current.camera_active = true
+  current.camera_stream_active = true
+  current.camera_url = `/training_data/images/${current.timestamp}.jpg`
+  handleIncomingData(current, true)
+  offlineIndex += 1
+  // Variable pacing: timestamps are in milliseconds
+  const delta = Number(next.timestamp) - Number(current.timestamp)
+  const delayMs = Number.isFinite(delta) && delta > 0 ? delta : 80
+  offlineTimeout = setTimeout(playOfflineNext, Math.max(1, Math.floor(delayMs)))
+}
+
+function parseTrainingCsv(csvText) {
+  const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0)
+  if (lines.length < 2) return []
+  const headers = lines[0].split(',').map(h => h.trim())
+  const rows = []
+  for (let i = 1; i < lines.length; i++) {
+    const cols = splitCsvLine(lines[i])
+    if (cols.length !== headers.length) continue
+    const obj = {}
+    for (let j = 0; j < headers.length; j++) {
+      const key = headers[j]
+      const raw = cols[j]
+      obj[key] = coerceCsvValue(raw)
+    }
+    rows.push(obj)
+  }
+  return rows
+}
+
+function splitCsvLine(line) {
+  // Simple CSV splitter (no embedded commas expected per provided data)
+  return line.split(',')
+}
+
+function coerceCsvValue(v) {
+  if (v === 'True') return true
+  if (v === 'False') return false
+  if (v === '') return ''
+  const num = Number(v)
+  return Number.isNaN(num) ? v : num
+}
+
+// Power toggle handler from Header
+const onPowerToggle = (isOn) => {
+  powerEnabled.value = !!isOn
+  if (powerEnabled.value) {
+    // When toggled on: stop offline and attempt to reconnect websocket
+    stopOfflinePlayback()
+    hasLiveData.value = false
+    connectWebsocket()
+  } else {
+    // When toggled off: close websocket and play offline
+    try { if (websocket) websocket.close() } catch (e) {}
+    hasLiveData.value = false
+    startOfflinePlayback()
+  }
 }
 </script>
 
