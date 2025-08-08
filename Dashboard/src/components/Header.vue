@@ -102,7 +102,7 @@
     position: relative;
     display: inline-block;
     width: 60px;
-    height: 30px;
+    height: 31px;
   }
   
   .toggle-switch input {
@@ -129,8 +129,8 @@
     content: "";
     height: 20px;
     width: 20px;
-    left: 2px;
-    bottom: 2px;
+    left: 3px;
+    bottom: 3px;
     background-color: white;
     transition: 0.3s;
     border-radius: 50%;
