@@ -77,15 +77,15 @@
             </div>
           </div>
 <br></br>
-          <h3 class="section-title">FLUID PRESSURE</h3>
+           <h3 class="section-title">FLOW RATE</h3>
           
           <div class="pressure-dials">
             <div class="pressure-dial">
               <div class="dial-container">
                 <svg class="dial-svg" viewBox="0 0 50 50">
                   <circle class="dial-background" cx="25" cy="25" r="20" />
-                  <circle class="dial-fill" cx="25" cy="25" r="20" 
-                          :style="{ strokeDasharray: `${(fluidPressures.driveMotors / 100) * 126}, 126` }" />
+                   <circle class="dial-fill" cx="25" cy="25" r="20" 
+                           :style="{ strokeDasharray: dialDash(fluidPressures.driveMotors) }" />
                   <text class="dial-value-text" x="25" y="24" text-anchor="middle" dominant-baseline="middle">{{ Math.round(fluidPressures.driveMotors) }}</text>
                 </svg>
                 <div class="dial-title">DRIVE</div>
@@ -96,8 +96,8 @@
               <div class="dial-container">
                 <svg class="dial-svg" viewBox="0 0 50 50">
                   <circle class="dial-background" cx="25" cy="25" r="20" />
-                  <circle class="dial-fill" cx="25" cy="25" r="20" 
-                          :style="{ strokeDasharray: `${(fluidPressures.steeringMotor / 100) * 126}, 126` }" />
+                   <circle class="dial-fill" cx="25" cy="25" r="20" 
+                           :style="{ strokeDasharray: dialDash(fluidPressures.steeringMotor) }" />
                   <text class="dial-value-text" x="25" y="24" text-anchor="middle" dominant-baseline="middle">{{ Math.round(fluidPressures.steeringMotor) }}</text>
                 </svg>
                 <div class="dial-title">STEER</div>
@@ -108,8 +108,8 @@
               <div class="dial-container">
                 <svg class="dial-svg" viewBox="0 0 50 50">
                   <circle class="dial-background" cx="25" cy="25" r="20" />
-                  <circle class="dial-fill" cx="25" cy="25" r="20" 
-                          :style="{ strokeDasharray: `${(fluidPressures.bucketMotor / 100) * 126}, 126` }" />
+                   <circle class="dial-fill" cx="25" cy="25" r="20" 
+                           :style="{ strokeDasharray: dialDash(fluidPressures.bucketMotor) }" />
                   <text class="dial-value-text" x="25" y="24" text-anchor="middle" dominant-baseline="middle">{{ Math.round(fluidPressures.bucketMotor) }}</text>
                 </svg>
                 <div class="dial-title">BUCKET</div>
@@ -120,8 +120,8 @@
               <div class="dial-container">
                 <svg class="dial-svg" viewBox="0 0 50 50">
                   <circle class="dial-background" cx="25" cy="25" r="20" />
-                  <circle class="dial-fill" cx="25" cy="25" r="20" 
-                          :style="{ strokeDasharray: `${(fluidPressures.armMotor / 100) * 126}, 126` }" />
+                   <circle class="dial-fill" cx="25" cy="25" r="20" 
+                           :style="{ strokeDasharray: dialDash(fluidPressures.armMotor) }" />
                   <text class="dial-value-text" x="25" y="24" text-anchor="middle" dominant-baseline="middle">{{ Math.round(fluidPressures.armMotor) }}</text>
                 </svg>
                 <div class="dial-title">ARM</div>
@@ -132,8 +132,8 @@
               <div class="dial-container">
                 <svg class="dial-svg" viewBox="0 0 50 50">
                   <circle class="dial-background" cx="25" cy="25" r="20" />
-                  <circle class="dial-fill" cx="25" cy="25" r="20" 
-                          :style="{ strokeDasharray: `${(fluidPressures.extensionMotor / 100) * 126}, 126` }" />
+                   <circle class="dial-fill" cx="25" cy="25" r="20" 
+                           :style="{ strokeDasharray: dialDash(fluidPressures.extensionMotor) }" />
                   <text class="dial-value-text" x="25" y="24" text-anchor="middle" dominant-baseline="middle">{{ Math.round(fluidPressures.extensionMotor) }}</text>
                 </svg>
                 <div class="dial-title">EXT</div>
@@ -967,13 +967,14 @@ const handleIncomingData = (data, isOffline = false) => {
     if (typeof data.servo_angle === 'number') {
       targetMovements.value.centerPivot = data.servo_angle
     }
-    // Update fluid pressures (map flow rates to 0-100%)
+    // Update fluid pressures (map flow rates to 0-100% of 25, hide under 1)
     if (data) {
       const flowToPercent = (v) => {
         const val = Number(v)
         if (!Number.isFinite(val)) return 0
-        const scaled = val <= 1.5 ? val * 100 : val
-        return Math.max(0, Math.min(100, scaled))
+        if (val < 1) return 0
+        const pct = (val / 25) * 100
+        return Math.max(0, Math.min(100, pct))
       }
       if (data.drive_motors_flow !== undefined) {
         targetFluidPressures.value.driveMotors = flowToPercent(data.drive_motors_flow)
@@ -1005,6 +1006,14 @@ const handleIncomingData = (data, isOffline = false) => {
   // FPS counter tick
   messagesThisSecond += 1
 }
+
+  // Dial strokeDash helper: returns "len, total" string with visibility rule
+  const dialDash = (percentVal) => {
+    const total = 126
+    const p = Math.max(0, Math.min(100, Number(percentVal) || 0))
+    const len = (p / 100) * total
+    return `${len}, ${total}`
+  }
 
 // Establish websocket and update reactive targets
 const connectWebsocket = () => {
