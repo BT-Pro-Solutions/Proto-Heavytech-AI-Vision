@@ -77,9 +77,71 @@
               </div>
             </div>
           </div>
+<br></br>
+          <h3 class="section-title">FLUID PRESSURE</h3>
+          
+          <div class="pressure-dials">
+            <div class="pressure-dial">
+              <div class="dial-container">
+                <svg class="dial-svg" viewBox="0 0 50 50">
+                  <circle class="dial-background" cx="25" cy="25" r="20" />
+                  <circle class="dial-fill" cx="25" cy="25" r="20" 
+                          :style="{ strokeDasharray: `${(fluidPressures.driveMotors / 100) * 126}, 126` }" />
+                  <text class="dial-value-text" x="25" y="24" text-anchor="middle" dominant-baseline="middle">{{ Math.round(fluidPressures.driveMotors) }}</text>
+                </svg>
+                <div class="dial-title">DRIVE</div>
+              </div>
+            </div>
+
+            <div class="pressure-dial">
+              <div class="dial-container">
+                <svg class="dial-svg" viewBox="0 0 50 50">
+                  <circle class="dial-background" cx="25" cy="25" r="20" />
+                  <circle class="dial-fill" cx="25" cy="25" r="20" 
+                          :style="{ strokeDasharray: `${(fluidPressures.steeringMotor / 100) * 126}, 126` }" />
+                  <text class="dial-value-text" x="25" y="24" text-anchor="middle" dominant-baseline="middle">{{ Math.round(fluidPressures.steeringMotor) }}</text>
+                </svg>
+                <div class="dial-title">STEER</div>
+              </div>
+            </div>
+
+            <div class="pressure-dial">
+              <div class="dial-container">
+                <svg class="dial-svg" viewBox="0 0 50 50">
+                  <circle class="dial-background" cx="25" cy="25" r="20" />
+                  <circle class="dial-fill" cx="25" cy="25" r="20" 
+                          :style="{ strokeDasharray: `${(fluidPressures.bucketMotor / 100) * 126}, 126` }" />
+                  <text class="dial-value-text" x="25" y="24" text-anchor="middle" dominant-baseline="middle">{{ Math.round(fluidPressures.bucketMotor) }}</text>
+                </svg>
+                <div class="dial-title">BUCKET</div>
+              </div>
+            </div>
+
+            <div class="pressure-dial">
+              <div class="dial-container">
+                <svg class="dial-svg" viewBox="0 0 50 50">
+                  <circle class="dial-background" cx="25" cy="25" r="20" />
+                  <circle class="dial-fill" cx="25" cy="25" r="20" 
+                          :style="{ strokeDasharray: `${(fluidPressures.armMotor / 100) * 126}, 126` }" />
+                  <text class="dial-value-text" x="25" y="24" text-anchor="middle" dominant-baseline="middle">{{ Math.round(fluidPressures.armMotor) }}</text>
+                </svg>
+                <div class="dial-title">ARM</div>
+              </div>
+            </div>
+
+            <div class="pressure-dial">
+              <div class="dial-container">
+                <svg class="dial-svg" viewBox="0 0 50 50">
+                  <circle class="dial-background" cx="25" cy="25" r="20" />
+                  <circle class="dial-fill" cx="25" cy="25" r="20" 
+                          :style="{ strokeDasharray: `${(fluidPressures.extensionMotor / 100) * 126}, 126` }" />
+                  <text class="dial-value-text" x="25" y="24" text-anchor="middle" dominant-baseline="middle">{{ Math.round(fluidPressures.extensionMotor) }}</text>
+                </svg>
+                <div class="dial-title">EXT</div>
+              </div>
+            </div>
+          </div>
         </div>
-
-
 
         <!-- AI Vision Status -->
         <div class="vision-section" :class="{ 'is-loaded': animationState.video }">
@@ -163,6 +225,24 @@ const cameraActive = ref(false)
 const cameraUrl = ref('http://heavy.local:8000/camera/stream')
 const lightsOn = ref(false)
 
+// Fluid pressure data (flow rates from API)
+const fluidPressures = ref({
+  driveMotors: 0,
+  steeringMotor: 0,
+  bucketMotor: 0,
+  armMotor: 0,
+  extensionMotor: 0
+})
+
+// Target fluid pressures for smooth animation
+const targetFluidPressures = ref({
+  driveMotors: 0,
+  steeringMotor: 0,
+  bucketMotor: 0,
+  armMotor: 0,
+  extensionMotor: 0
+})
+
 // Animation intervals
 let animationInterval = null
 let animationId = null
@@ -179,7 +259,8 @@ let motorSpeed = 0 // 0.0 - 1.0
 const animationState = ref({
   model: false,
   movement: false,
-  video: false
+  video: false,
+  fluidPressure: false
 })
 
 // Mouse controls state
@@ -549,6 +630,13 @@ const simulateMovements = () => {
     targetMovements.value.wheelBackRight = Math.sin(time * 0.7) * 60 + Math.cos(time * 0.3) * 40
     targetMovements.value.wheelFrontLeft = Math.sin(time * 0.5) * 50 + Math.cos(time * 0.4) * 30
     targetMovements.value.wheelFrontRight = Math.sin(time * 0.5) * 50 + Math.cos(time * 0.4) * 30
+    
+    // Simulate fluid pressure values (0-100)
+    targetFluidPressures.value.driveMotors = 20 + Math.sin(time * 0.8) * 15 + Math.cos(time * 0.4) * 10
+    targetFluidPressures.value.steeringMotor = 15 + Math.sin(time * 0.6) * 10 + Math.cos(time * 0.3) * 8
+    targetFluidPressures.value.bucketMotor = 25 + Math.sin(time * 0.9) * 20 + Math.cos(time * 0.5) * 12
+    targetFluidPressures.value.armMotor = 30 + Math.sin(time * 0.7) * 18 + Math.cos(time * 0.4) * 15
+    targetFluidPressures.value.extensionMotor = 18 + Math.sin(time * 0.5) * 12 + Math.cos(time * 0.2) * 8
   }
   
   // Simulated FPS when offline
@@ -570,6 +658,13 @@ const smoothInterpolation = () => {
   movements.value.wheelBackRight += (targetMovements.value.wheelBackRight - movements.value.wheelBackRight) * lerpFactor
   movements.value.wheelFrontLeft += (targetMovements.value.wheelFrontLeft - movements.value.wheelFrontLeft) * lerpFactor
   movements.value.wheelFrontRight += (targetMovements.value.wheelFrontRight - movements.value.wheelFrontRight) * lerpFactor
+  
+  // Interpolate fluid pressure values
+  fluidPressures.value.driveMotors += (targetFluidPressures.value.driveMotors - fluidPressures.value.driveMotors) * lerpFactor
+  fluidPressures.value.steeringMotor += (targetFluidPressures.value.steeringMotor - fluidPressures.value.steeringMotor) * lerpFactor
+  fluidPressures.value.bucketMotor += (targetFluidPressures.value.bucketMotor - fluidPressures.value.bucketMotor) * lerpFactor
+  fluidPressures.value.armMotor += (targetFluidPressures.value.armMotor - fluidPressures.value.armMotor) * lerpFactor
+  fluidPressures.value.extensionMotor += (targetFluidPressures.value.extensionMotor - fluidPressures.value.extensionMotor) * lerpFactor
 }
 
 // Handle manual control interaction
@@ -661,6 +756,11 @@ const startAnimationSequence = () => {
   setTimeout(() => {
     animationState.value.movement = true
   }, 700)
+  
+  // Fluid pressure panel fades in
+  setTimeout(() => {
+    animationState.value.fluidPressure = true
+  }, 950)
   
   // Video feed fades in
   setTimeout(() => {
@@ -820,6 +920,23 @@ const connectWebsocket = () => {
     }
     if (typeof data.motor_speed === 'number') {
       motorSpeed = Math.max(0, Math.min(1, data.motor_speed))
+    }
+
+    // Update fluid pressure values from flow rate sensors
+    if (typeof data.drive_motors_flow === 'number') {
+      targetFluidPressures.value.driveMotors = Math.max(0, Math.min(100, data.drive_motors_flow))
+    }
+    if (typeof data.steering_motor_flow === 'number') {
+      targetFluidPressures.value.steeringMotor = Math.max(0, Math.min(100, data.steering_motor_flow))
+    }
+    if (typeof data.bucket_motor_flow === 'number') {
+      targetFluidPressures.value.bucketMotor = Math.max(0, Math.min(100, data.bucket_motor_flow))
+    }
+    if (typeof data.arm_motor_flow === 'number') {
+      targetFluidPressures.value.armMotor = Math.max(0, Math.min(100, data.arm_motor_flow))
+    }
+    if (typeof data.extension_motor_flow === 'number') {
+      targetFluidPressures.value.extensionMotor = Math.max(0, Math.min(100, data.extension_motor_flow))
     }
   }
 
@@ -1021,7 +1138,86 @@ const scheduleReconnect = () => {
   transition: left 0.3s ease;
 }
 
+.fluid-pressure-section {
+  background: var(--color-surface);
+  border-radius: 8px;
+  padding: 2rem;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  margin-bottom: 1rem;
 
+  &.is-loaded {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pressure-dials {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+}
+
+.pressure-dial {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.dial-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.dial-svg {
+  width: 45px;
+  height: 45px;
+  transform: rotate(-90deg);
+}
+
+.dial-background {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.dial-fill {
+  fill: none;
+  stroke: var(--color-secondary);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 0, 126;
+  transition: stroke-dasharray 0.3s ease;
+  filter: drop-shadow(0 0 4px var(--color-secondary-transparent));
+}
+
+.dial-value-text {
+  font-family: var(--font-heading);
+  font-size: 10px;
+  font-weight: 600;
+  fill: #fff;
+  text-anchor: middle;
+  transform: rotate(90deg);
+  font-variant-numeric: tabular-nums;
+}
+
+.dial-title {
+  font-family: var(--font-body);
+  font-size: 7px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
 
 .vision-section {
   border-radius: 8px;
