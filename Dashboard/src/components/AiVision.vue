@@ -185,6 +185,7 @@ let groundMesh
 let groundGrid
 let modelBaseYaw = 0
 let modelParts = {} // Store references to model parts
+let lightMaterials = {} // Store original and dull materials for lights
 const modelViewport = ref(null)
 
 // Sample movement data - now controlled by sliders
@@ -464,8 +465,34 @@ const initThreeJS = () => {
           modelParts.frontPivot = child
         } else if (name.includes('light-bar-lights')) {
           modelParts.lightBarLights = child
+          console.log('Found light-bar-lights:', child.name, child.material)
+          // Store original material and create dull version
+          if (child.material) {
+            const originalMaterial = Array.isArray(child.material) ? child.material[0] : child.material
+            const dullMaterial = originalMaterial.clone()
+            dullMaterial.emissive = new THREE.Color(0x949292) // Brighter gray
+            dullMaterial.emissiveIntensity = 0.3
+            lightMaterials.lightBarLights = {
+              original: originalMaterial,
+              dull: dullMaterial
+            }
+            console.log('Created light materials for light-bar-lights')
+          }
         } else if (name.includes('front-lights')) {
           modelParts.frontLights = child
+          console.log('Found front-lights:', child.name, child.material)
+          // Store original material and create dull version
+          if (child.material) {
+            const originalMaterial = Array.isArray(child.material) ? child.material[0] : child.material
+            const dullMaterial = originalMaterial.clone()
+            dullMaterial.emissive = new THREE.Color(0x949292) // Brighter gray
+            dullMaterial.emissiveIntensity = 0.3
+            lightMaterials.frontLights = {
+              original: originalMaterial,
+              dull: dullMaterial
+            }
+            console.log('Created light materials for front-lights')
+          }
         } else if (name.includes('wheel-back-left') || name.includes('wheel_back_left')) {
           modelParts.wheelBackLeft = child
         } else if (name.includes('wheel-back-right') || name.includes('wheel_back_right')) {
@@ -553,12 +580,34 @@ const initThreeJS = () => {
     if (modelParts.frontPivot) {
       modelParts.frontPivot.rotation.y = THREE.MathUtils.degToRad(-movements.value.centerPivot)
     }
-    // Toggle visible lights based on websocket lights flag
-    if (modelParts.lightBarLights) {
-      modelParts.lightBarLights.visible = !!lightsOn.value
+    // Switch light materials based on websocket lights flag
+    if (modelParts.lightBarLights && lightMaterials.lightBarLights) {
+      // Ensure lights are always visible
+      modelParts.lightBarLights.visible = true
+      
+      const targetMaterial = lightsOn.value ? lightMaterials.lightBarLights.original : lightMaterials.lightBarLights.dull
+      console.log('Switching light-bar-lights material:', lightsOn.value ? 'ON' : 'OFF')
+      if (Array.isArray(modelParts.lightBarLights.material)) {
+        modelParts.lightBarLights.material[0] = targetMaterial
+        modelParts.lightBarLights.material[0].needsUpdate = true
+      } else {
+        modelParts.lightBarLights.material = targetMaterial
+        modelParts.lightBarLights.material.needsUpdate = true
+      }
     }
-    if (modelParts.frontLights) {
-      modelParts.frontLights.visible = !!lightsOn.value
+    if (modelParts.frontLights && lightMaterials.frontLights) {
+      // Ensure lights are always visible
+      modelParts.frontLights.visible = true
+      
+      const targetMaterial = lightsOn.value ? lightMaterials.frontLights.original : lightMaterials.frontLights.dull
+      console.log('Switching front-lights material:', lightsOn.value ? 'ON' : 'OFF')
+      if (Array.isArray(modelParts.frontLights.material)) {
+        modelParts.frontLights.material[0] = targetMaterial
+        modelParts.frontLights.material[0].needsUpdate = true
+      } else {
+        modelParts.frontLights.material = targetMaterial
+        modelParts.frontLights.material.needsUpdate = true
+      }
     }
     
     // Wheel rotation: when live, rotate only by motor direction (forward/back/stopped).
