@@ -112,10 +112,14 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import Header from './Header.vue'
 
 // Three.js variables
 let scene, camera, renderer, model, mixer
+let composer, bloomPass
 let groundGrid
 let modelBaseYaw = 0
 let modelParts = {} // Store references to model parts
@@ -228,7 +232,7 @@ const initThreeJS = () => {
 
   // Scene setup
   scene = new THREE.Scene()
-  // Transparent background
+  scene.background = new THREE.Color(0x0f151a) // Set background to #0f151a
 
   // Camera setup
   camera = new THREE.PerspectiveCamera(
@@ -242,7 +246,7 @@ const initThreeJS = () => {
   // Renderer setup with improved quality
   renderer = new THREE.WebGLRenderer({ 
     antialias: true, 
-    alpha: true,
+    alpha: false, // Changed to false since we have a solid background
     powerPreference: "high-performance"
   })
   renderer.setSize(modelViewport.value.clientWidth, modelViewport.value.clientHeight)
@@ -252,8 +256,20 @@ const initThreeJS = () => {
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.0
   renderer.outputColorSpace = THREE.SRGBColorSpace
-  renderer.setClearColor(0x000000, 0) // Transparent background
   modelViewport.value.appendChild(renderer.domElement)
+
+  // Setup bloom effect
+  composer = new EffectComposer(renderer)
+  const renderPass = new RenderPass(scene, camera)
+  composer.addPass(renderPass)
+  
+  bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(modelViewport.value.clientWidth, modelViewport.value.clientHeight),
+    0.5, // Bloom strength
+    0.4, // Bloom radius
+    0.85  // Bloom threshold
+  )
+  composer.addPass(bloomPass)
 
   // Enhanced lighting setup
   const ambientLight = new THREE.AmbientLight(0x404040, 8)
@@ -483,7 +499,7 @@ const initThreeJS = () => {
       }
     }
 
-    renderer.render(scene, camera)
+    composer.render()
   }
   animate()
 
@@ -493,6 +509,7 @@ const initThreeJS = () => {
       camera.aspect = modelViewport.value.clientWidth / modelViewport.value.clientHeight
       camera.updateProjectionMatrix()
       renderer.setSize(modelViewport.value.clientWidth, modelViewport.value.clientHeight)
+      composer.setSize(modelViewport.value.clientWidth, modelViewport.value.clientHeight)
     }
   }
   window.addEventListener('resize', handleResize)
@@ -679,6 +696,9 @@ onUnmounted(() => {
     cancelAnimationFrame(animationId)
   }
   
+  if (composer) {
+    composer.dispose()
+  }
   if (renderer) {
     renderer.dispose()
   }
@@ -831,7 +851,6 @@ const scheduleReconnect = () => {
 .model-container {
   flex: 1;
   border-radius: 8px;
-  padding: 2rem;
   position: relative;
   overflow: hidden;
   opacity: 0;
@@ -845,13 +864,12 @@ const scheduleReconnect = () => {
 
   &::before {
     content: '';
-    background: radial-gradient(circle at center, #0E146A 0%, #0F151A 60%);
+    background: #0f151a;
     position: absolute;
-    top: 50%;
+    top: 0;
     left: 0;
     width: 100%;
-    aspect-ratio: 1/1;
-    transform: scaleY(0.5) translateY(-50%);
+    height: 100%;
   }
 }
 
@@ -860,24 +878,6 @@ const scheduleReconnect = () => {
   height: 100%;
   border-radius: 8px;
   position: relative;
-  &::after {
-    content: '';    
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    box-shadow: inset 0 0 10px 10px #0f151a;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-family: var(--font-heading);
-    font-size: 1.2rem;
-    color: #ffffff48;
-    text-align: center;
-    pointer-events: none;
-    text-shadow: 0 0 10px #0f151a;
-  }
 }
 
 .data-container {
