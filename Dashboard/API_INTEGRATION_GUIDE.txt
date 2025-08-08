@@ -1,0 +1,273 @@
+ROBOT API INTEGRATION GUIDE
+===========================
+
+Base URL: http://heavy.local:8000/
+
+OVERVIEW
+--------
+This guide explains how to connect to the robot's real-time data stream and video feed
+for building custom front-end applications. The robot provides websocket data at 25Hz
+and an MJPEG video stream.
+
+WEBSOCKET DATA STREAM
+=====================
+
+Endpoint: ws://heavy.local:8000/ws
+Update Rate: 25Hz (40ms intervals)
+Data Format: JSON
+
+Connection Example (JavaScript):
+```javascript
+const ws = new WebSocket('ws://heavy.local:8000/ws');
+
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log('Robot state:', data);
+};
+
+ws.onopen = () => {
+    console.log('Connected to robot websocket');
+};
+
+ws.onclose = () => {
+    console.log('Disconnected from robot websocket');
+};
+```
+
+WEBSOCKET DATA ATTRIBUTES
+=========================
+
+POSITION & MOTION DATA:
+- arm_angle: float - Arm angle in degrees (-32.5° to +18.3°)
+- bucket_angle: float - Bucket angle relative to neutral (degrees)
+- extension_amount: float - Extension amount in mm (0-100mm)
+- bucket_height: float - Bucket height above ground in mm
+- servo_angle: float - Steering servo angle (-45° to +45°)
+- motor_speed: float - Motor speed (0.0 to 1.0)
+- motor_direction: string - Motor direction ('forward', 'backward', 'stopped')
+
+ACTUATOR STATES:
+- hat_actuator_state: string - Extension actuator state ('moving_up', 'moving_down', 'stopped')
+- left_actuator_state: string - Arm actuator state ('moving_up', 'moving_down', 'stopped')
+
+FLOW RATE SENSORS (Current monitoring):
+- drive_motors_flow: float - Drive motors current flow rate
+- steering_motor_flow: float - Steering motor current flow rate
+- bucket_motor_flow: float - Bucket motor current flow rate
+- arm_motor_flow: float - Arm motor current flow rate
+- extension_motor_flow: float - Extension motor current flow rate
+
+SYSTEM STATUS:
+- lights_on: boolean - Whether lights are currently on
+- web_active: boolean - Whether web interface is active
+- loop_time: float - Main control loop time in milliseconds (target: 40ms)
+- cpu_percent: float - Current CPU usage percentage
+
+CAMERA & TRAINING:
+- camera_active: boolean - Whether camera is active
+- camera_url: string - Camera stream URL ('/camera/stream')
+- camera_stream_active: boolean - Whether camera stream is active
+- training_mode_active: boolean - Whether training mode is active
+- training_image_count: integer - Number of training images captured
+
+CONTROLLER INPUT DATA:
+- triangle_pressed: boolean - Triangle button state
+- right_stick_x: integer - Right stick X-axis (-127 to +127)
+- right_stick_y: integer - Right stick Y-axis (-127 to +127)
+- left_stick_y: integer - Left stick Y-axis (-127 to +127)
+- l2_value: integer - L2 trigger value (0 to 255)
+- r2_value: integer - R2 trigger value (0 to 255)
+- dpad_up: boolean - D-pad up button state
+- dpad_down: boolean - D-pad down button state
+
+VIDEO STREAM
+============
+
+Endpoint: http://heavy.local:8000/camera/stream
+Format: MJPEG (Multipart JPEG)
+Resolution: 1536x864
+Frame Rate: 25 FPS
+Quality: Optimized for streaming
+
+Video Stream Integration Examples:
+
+JavaScript (HTML5 video):
+```html
+<img src="http://heavy.local:8000/camera/stream" alt="Robot Camera Feed" />
+```
+
+JavaScript (Fetch API):
+```javascript
+async function getVideoStream() {
+    const response = await fetch('http://heavy.local:8000/camera/stream');
+    const reader = response.body.getReader();
+    
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        // Process MJPEG data chunks
+        console.log('Video chunk:', value);
+    }
+}
+```
+
+Python (requests):
+```python
+import requests
+
+response = requests.get('http://heavy.local:8000/camera/stream', stream=True)
+for chunk in response.iter_content(chunk_size=8192):
+    # Process video chunks
+    print(f"Received {len(chunk)} bytes")
+```
+
+COMPLETE FRONT-END EXAMPLE
+==========================
+
+HTML/JavaScript implementation:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Robot Control Interface</title>
+    <style>
+        .container { display: flex; }
+        .video-panel { flex: 1; }
+        .data-panel { flex: 1; padding: 20px; }
+        .status { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .status.on { background: #d4edda; color: #155724; }
+        .status.off { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="video-panel">
+            <h2>Robot Camera Feed</h2>
+            <img id="camera-feed" src="http://heavy.local:8000/camera/stream" 
+                 style="max-width: 100%; height: auto;" />
+        </div>
+        
+        <div class="data-panel">
+            <h2>Real-time Robot Data</h2>
+            
+            <div class="status" id="lights-status">
+                Lights: <span id="lights-value">?</span>
+            </div>
+            
+            <div class="status" id="motors-status">
+                Motors: <span id="motors-value">?</span>
+            </div>
+            
+            <div>
+                <strong>Position Data:</strong><br>
+                Arm Angle: <span id="arm-angle">?</span>°<br>
+                Bucket Angle: <span id="bucket-angle">?</span>°<br>
+                Extension: <span id="extension">?</span>mm<br>
+                Height: <span id="height">?</span>mm<br>
+                Speed: <span id="speed">?</span> MPH<br>
+                Steering: <span id="steering">?</span>°
+            </div>
+            
+            <div>
+                <strong>Controller Input:</strong><br>
+                Right Stick: (<span id="right-x">?</span>, <span id="right-y">?</span>)<br>
+                Left Stick Y: <span id="left-y">?</span><br>
+                L2/R2: <span id="l2">?</span> / <span id="r2">?</span><br>
+                Triangle: <span id="triangle">?</span>
+            </div>
+            
+            <div>
+                <strong>System:</strong><br>
+                Loop Time: <span id="loop-time">?</span>ms<br>
+                CPU: <span id="cpu">?</span>%<br>
+                Training: <span id="training">?</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ws = new WebSocket('ws://heavy.local:8000/ws');
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            
+            // Update status indicators
+            document.getElementById('lights-value').textContent = data.lights_on ? 'ON' : 'OFF';
+            document.getElementById('lights-status').className = 
+                'status ' + (data.lights_on ? 'on' : 'off');
+            
+            document.getElementById('motors-value').textContent = data.motor_direction;
+            document.getElementById('motors-status').className = 
+                'status ' + (data.motor_direction === 'stopped' ? 'off' : 'on');
+            
+            // Update position data
+            document.getElementById('arm-angle').textContent = data.arm_angle.toFixed(1);
+            document.getElementById('bucket-angle').textContent = data.bucket_angle.toFixed(1);
+            document.getElementById('extension').textContent = data.extension_amount.toFixed(1);
+            document.getElementById('height').textContent = data.bucket_height.toFixed(0);
+            document.getElementById('speed').textContent = (data.motor_speed * 1.87).toFixed(2);
+            document.getElementById('steering').textContent = data.servo_angle.toFixed(1);
+            
+            // Update controller input
+            document.getElementById('right-x').textContent = data.right_stick_x;
+            document.getElementById('right-y').textContent = data.right_stick_y;
+            document.getElementById('left-y').textContent = data.left_stick_y;
+            document.getElementById('l2').textContent = data.l2_value;
+            document.getElementById('r2').textContent = data.r2_value;
+            document.getElementById('triangle').textContent = data.triangle_pressed ? 'PRESSED' : 'Released';
+            
+            // Update system info
+            document.getElementById('loop-time').textContent = data.loop_time.toFixed(1);
+            document.getElementById('cpu').textContent = data.cpu_percent.toFixed(1);
+            document.getElementById('training').textContent = data.training_mode_active ? 'ACTIVE' : 'Inactive';
+        };
+        
+        ws.onopen = () => {
+            console.log('Connected to robot websocket');
+        };
+        
+        ws.onclose = () => {
+            console.log('Disconnected from robot websocket');
+        };
+    </script>
+</body>
+</html>
+```
+
+PYTHON EXAMPLE
+==============
+
+```python
+import asyncio
+import websockets
+import json
+import requests
+
+async def robot_data_client():
+    uri = "ws://heavy.local:8000/ws"
+    
+    async with websockets.connect(uri) as websocket:
+        print("Connected to robot websocket")
+        
+        while True:
+            try:
+                message = await websocket.recv()
+                data = json.loads(message)
+                
+                print(f"Arm Angle: {data['arm_angle']:.1f}°")
+                print(f"Bucket Height: {data['bucket_height']:.0f}mm")
+                print(f"Motor Speed: {data['motor_speed']:.2f}")
+                print(f"Controller: ({data['right_stick_x']}, {data['right_stick_y']})")
+                print(f"Training Mode: {data['training_mode_active']}")
+                print("---")
+                
+            except websockets.exceptions.ConnectionClosed:
+                print("Connection closed")
+                break
+
+# Start the client
+asyncio.run(robot_data_client())
+```
+
