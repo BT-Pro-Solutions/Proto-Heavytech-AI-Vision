@@ -234,6 +234,9 @@ const initThreeJS = () => {
   // Scene setup
   scene = new THREE.Scene()
   scene.background = new THREE.Color(0x0f151a) // Set background to #0f151a
+  
+  // Add fog effect for depth and atmosphere
+  scene.fog = new THREE.Fog(0x0f151a, 15, 100) // Same color as background, starts at 15 units, fully foggy at 100 units
 
   // Camera setup
   camera = new THREE.PerspectiveCamera(
@@ -319,7 +322,8 @@ const initThreeJS = () => {
   scene.add(groundMesh)
 
   // Subtle ground lines (grid) to indicate motion; only shown when moving
-  groundGrid = new THREE.GridHelper(1000, 200, 0x406080, 0x406080)
+  // Brighter color: use 0x70a0e0 (was 0x406080)
+  groundGrid = new THREE.GridHelper(1000, 200, 0x70a0e0, 0x70a0e0)
   groundGrid.position.y = -4.95
   if (Array.isArray(groundGrid.material)) {
     groundGrid.material.forEach((m) => { m.transparent = true; m.opacity = 0.25; m.depthWrite = false })
@@ -876,12 +880,13 @@ const scheduleReconnect = () => {
 
   &::before {
     content: '';
-    background: #0f151a;
+    box-shadow: inset 0 0 40px 50px #0f151b;
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
+    z-index: 1;
   }
 }
 
