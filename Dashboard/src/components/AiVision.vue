@@ -148,7 +148,7 @@
           
           <!-- Video feed: show MJPEG stream only when active, otherwise fallback video -->
           <div class="video-container">
-            <img class="video-feed" :src="cameraUrl" alt="Robot Camera Feed" />
+            <img class="video-feed" :src="cameraUrl" alt="Robot Camera Feed" @error="onCameraError" />
           </div>
           <div class="vision-header">
             <div class="vision-status">
@@ -218,7 +218,9 @@ const visionStats = ref({
 const hasLiveData = ref(false)
 const trainingActive = ref(false)
 const cameraActive = ref(false)
-const cameraUrl = ref('http://heavy.local:8000/camera/stream')
+// Prefer the lower-quality stream when available and fall back to the standard stream
+const cameraFallbackUrl = ref('http://heavy.local:8000/camera/stream')
+const cameraUrl = ref('http://heavy.local:8000/camera/stream-low')
 const lightsOn = ref(false)
 const powerEnabled = ref(true)
 // App base path for serving public assets both in dev and prod
@@ -241,6 +243,23 @@ const targetFluidPressures = ref({
   armMotor: 0,
   extensionMotor: 0
 })
+
+// Compute preferred camera URL (low quality) with a fallback to the standard stream
+function computePreferredAndFallbackCameraUrls(inputUrl) {
+  const url = String(inputUrl || '')
+  if (url.includes('/camera/stream')) {
+    return [url.replace('/camera/stream', '/camera/stream-low'), url]
+  }
+  return [url, url]
+}
+
+// If the low-quality stream fails to load, revert to the fallback immediately
+function onCameraError() {
+  const current = String(cameraUrl.value || '')
+  if (current.includes('/camera/stream-low')) {
+    cameraUrl.value = cameraFallbackUrl.value
+  }
+}
 
 // Animation intervals
 let animationInterval = null
@@ -940,16 +959,20 @@ const handleIncomingData = (data, isOffline = false) => {
   }
   if (typeof data.camera_url === 'string' && data.camera_url.length > 0) {
     const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : ''
+    let resolvedUrl
     if (data.camera_url.startsWith('http')) {
-      cameraUrl.value = data.camera_url
+      resolvedUrl = data.camera_url
     } else if (isOffline) {
       // Mock assets: resolve against app base (works on dev server and deployed server)
       const base = appBase.endsWith('/') ? appBase : `${appBase}/`
-      cameraUrl.value = `${origin}${base.replace(/\/$/, '')}${data.camera_url}`
+      resolvedUrl = `${origin}${base.replace(/\/$/, '')}${data.camera_url}`
     } else {
       // Live stream served from robot
-      cameraUrl.value = `http://heavy.local:8000${data.camera_url}`
+      resolvedUrl = `http://heavy.local:8000${data.camera_url}`
     }
+    const [preferredUrl, fallbackUrl] = computePreferredAndFallbackCameraUrls(resolvedUrl)
+    cameraFallbackUrl.value = fallbackUrl
+    cameraUrl.value = preferredUrl
   }
 
   // Update target movements from data
@@ -1480,7 +1503,7 @@ const onPowerToggle = (isOn) => {
 .video-feed {
   width: 100%;
   height: 100%;
-  aspect-ratio: 16/9;
+  aspect-ratio: 4/3;
   object-fit: cover;
   background: linear-gradient(45deg, #2a2a3e 0%, #1a1a2e 100%);
 }
