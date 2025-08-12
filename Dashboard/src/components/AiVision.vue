@@ -148,7 +148,7 @@
           
           <!-- Video feed: show MJPEG stream only when active, otherwise fallback video -->
           <div class="video-container">
-            <img class="video-feed" :src="cameraUrl" alt="Robot Camera Feed" @error="onCameraError" />
+            <img class="video-feed" :src="cameraUrl" alt="Robot Camera Feed" />
           </div>
           <div class="vision-header">
             <div class="vision-status">
@@ -218,9 +218,8 @@ const visionStats = ref({
 const hasLiveData = ref(false)
 const trainingActive = ref(false)
 const cameraActive = ref(false)
-// Prefer the lower-quality stream when available and fall back to the standard stream
-const cameraFallbackUrl = ref('http://heavy.local:8000/camera/stream')
-const cameraUrl = ref('http://heavy.local:8000/camera/stream-low')
+// Use the main camera stream
+const cameraUrl = ref('http://heavy.local:8000/camera/stream')
 const lightsOn = ref(false)
 const powerEnabled = ref(true)
 // App base path for serving public assets both in dev and prod
@@ -244,22 +243,7 @@ const targetFluidPressures = ref({
   extensionMotor: 0
 })
 
-// Compute preferred camera URL (low quality) with a fallback to the standard stream
-function computePreferredAndFallbackCameraUrls(inputUrl) {
-  const url = String(inputUrl || '')
-  if (url.includes('/camera/stream')) {
-    return [url.replace('/camera/stream', '/camera/stream-low'), url]
-  }
-  return [url, url]
-}
-
-// If the low-quality stream fails to load, revert to the fallback immediately
-function onCameraError() {
-  const current = String(cameraUrl.value || '')
-  if (current.includes('/camera/stream-low')) {
-    cameraUrl.value = cameraFallbackUrl.value
-  }
-}
+// Low-stream preference removed; always use the main stream
 
 // Animation intervals
 let animationInterval = null
@@ -970,9 +954,7 @@ const handleIncomingData = (data, isOffline = false) => {
       // Live stream served from robot
       resolvedUrl = `http://heavy.local:8000${data.camera_url}`
     }
-    const [preferredUrl, fallbackUrl] = computePreferredAndFallbackCameraUrls(resolvedUrl)
-    cameraFallbackUrl.value = fallbackUrl
-    cameraUrl.value = preferredUrl
+    cameraUrl.value = resolvedUrl
   }
 
   // Update target movements from data
