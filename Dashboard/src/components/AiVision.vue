@@ -174,6 +174,9 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import Header from './Header.vue'
 
+// Emit live-state to parent so it can control global view behavior
+const emit = defineEmits(['live-state'])
+
 // Three.js variables
 let scene, camera, renderer, model, mixer
 let composer, bloomPass
@@ -1007,6 +1010,9 @@ const handleIncomingData = (data, isOffline = false) => {
     motorSpeed = Math.max(0, Math.min(1, data.motor_speed))
   }
 
+  // Notify parent about live state whenever new data arrives
+  emit('live-state', { powerEnabled: powerEnabled.value, hasLiveData: hasLiveData.value })
+
   // FPS counter tick
   messagesThisSecond += 1
 }
@@ -1059,6 +1065,8 @@ const connectWebsocket = () => {
     }
     // Start offline playback when connection drops or power is off
     startOfflinePlayback()
+    // Notify parent that live data ended
+    emit('live-state', { powerEnabled: powerEnabled.value, hasLiveData: hasLiveData.value })
   }
 
   websocket.onerror = () => {
@@ -1172,6 +1180,8 @@ const onPowerToggle = (isOn) => {
     hasLiveData.value = false
     startOfflinePlayback()
   }
+  // Notify parent about change in power state
+  emit('live-state', { powerEnabled: powerEnabled.value, hasLiveData: hasLiveData.value })
 }
 </script>
 

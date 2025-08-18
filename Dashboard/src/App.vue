@@ -22,7 +22,7 @@
       </div>
       
       <div class="right-panel">
-        <component :is="currentView" />
+        <component :is="currentView" @live-state="onLiveState" />
       </div>
     </div>
   </div>
@@ -45,41 +45,33 @@ const components = {
 const currentView = ref(VehicleInformationView)
 const activeView = ref('vehicleInformation')
 
-// Demo functionality
-const isDemoMode = ref(false)
-const demoInterval = ref(null)
+// Auto-cycle functionality
+const cycleInterval = ref(null)
 const viewCycle = ['vehicleInformation', 'aivision', 'maintenance']
 let currentViewIndex = 0
+let isLiveAndPowered = false
 
-// Check for demo URL parameter
-const checkDemoParameter = () => {
-  const urlParams = new URLSearchParams(window.location.search)
-  return urlParams.has('demo')
-}
-
-// Start demo mode
-const startDemo = () => {
-  if (demoInterval.value) return // Already running
-  
-  isDemoMode.value = true
+// Start auto-cycle (default behavior unless live data is active)
+const startCycle = () => {
+  if (cycleInterval.value) return
   currentViewIndex = 0
-  
-  // Set initial view
   navigateToView(viewCycle[currentViewIndex])
-  
-  demoInterval.value = setInterval(() => {
+  cycleInterval.value = setInterval(() => {
+    // When live data is active and power on, lock to Ai Vision
+    if (isLiveAndPowered) {
+      if (activeView.value !== 'aivision') navigateToView('aivision')
+      return
+    }
     currentViewIndex = (currentViewIndex + 1) % viewCycle.length
     navigateToView(viewCycle[currentViewIndex])
-  }, 6000) // 4 seconds
+  }, 6000)
 }
 
-// Stop demo mode
-const stopDemo = () => {
-  if (demoInterval.value) {
-    clearInterval(demoInterval.value)
-    demoInterval.value = null
+const stopCycle = () => {
+  if (cycleInterval.value) {
+    clearInterval(cycleInterval.value)
+    cycleInterval.value = null
   }
-  isDemoMode.value = false
 }
 
 // Navigate to a specific view
@@ -96,25 +88,23 @@ const navigateToView = (view) => {
 
 const handleNavigation = (view) => {
   console.log('Navigation clicked:', view)
-  
-  // Stop demo mode if user manually navigates
-  if (isDemoMode.value) {
-    stopDemo()
-  }
-  
+  // Manual navigation is allowed; it does not disable cycling
   navigateToView(view)
 }
 
+// Receive live-state from AiVision
+const onLiveState = ({ powerEnabled, hasLiveData }) => {
+  isLiveAndPowered = !!powerEnabled && !!hasLiveData
+}
+
 onMounted(() => {
-  // Check if demo parameter is present and start demo
-  if (checkDemoParameter()) {
-    startDemo()
-  }
+  // Always start cycling by default
+  startCycle()
 })
 
 onUnmounted(() => {
   // Cleanup interval on component unmount
-  stopDemo()
+  stopCycle()
 })
 </script>
 
