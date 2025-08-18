@@ -931,6 +931,9 @@ const mapExtensionToScale = (millimeters) => {
 const handleIncomingData = (data, isOffline = false) => {
   // If websocket indicates idle, treat as offline regardless of power state
   if (!isOffline && data && data.idle === true) {
+    // Mark not live and notify parent before switching to offline
+    hasLiveData.value = false
+    emit('live-state', { powerEnabled: powerEnabled.value, hasLiveData: false })
     startOfflinePlayback()
     return
   }
@@ -1011,7 +1014,9 @@ const handleIncomingData = (data, isOffline = false) => {
   }
 
   // Notify parent about live state whenever new data arrives
-  emit('live-state', { powerEnabled: powerEnabled.value, hasLiveData: hasLiveData.value })
+  // Consider only real live websocket data as "live"; offline playback is not live
+  const isRealLive = !isOffline
+  emit('live-state', { powerEnabled: powerEnabled.value, hasLiveData: isRealLive })
 
   // FPS counter tick
   messagesThisSecond += 1
