@@ -7,21 +7,27 @@
         :class="{ active: activeView === 'vehicleInformation' }"
         @click="$emit('navigate', 'vehicleInformation')"
       >
-        <Icon icon="ci:info" />
+        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 4a1.25 1.25 0 1 1 0 2.5A1.25 1.25 0 0 1 12 6zm1.5 12h-3v-1.5h1v-5h-1V10h2.5v6.5h.5V18z"/>
+        </svg>
       </div>
       <div 
         class="nav-item"
         :class="{ active: activeView === 'aivision' }"
         @click="$emit('navigate', 'aivision')"
       >
-        <Icon icon="tabler:camera-ai" />
+        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M4 7a3 3 0 0 1 3-3h3l2-2h3l2 2h3a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7zm8 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/>
+        </svg>
       </div>
       <div 
         class="nav-item"
         :class="{ active: activeView === 'maintenance' }"
         @click="$emit('navigate', 'maintenance')"
       >
-        <Icon icon="prime:wrench" />
+        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M22.7 19.3l-6.4-6.4a6 6 0 0 1-7.6-7.6l2.1 2.1 2.1-2.1-2.1-2.1a6 6 0 0 1 7.6 7.6l6.4 6.4-2.1 2.1zM4 20a2 2 0 1 1 4 0 2 2 0 0 1-4 0z"/>
+        </svg>
       </div>
     </nav>
   </div>
